@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { CalendarHeart, Edit, Plus } from "lucide-react"
+import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore"
+import { db } from "../lib/firebase"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,74 +19,111 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 
-export default function DiaryPage() {
-  const [entries, setEntries] = useState([
-    {
-      id: 1,
-      date: "10 de Julio, 2023",
-      title: "Nuestro Primer Aniversario",
-      content:
-        "Hoy celebramos nuestro primer año juntos. Fuimos a cenar a ese restaurante especial donde tuvimos nuestra tercera cita. Fue una noche mágica.",
-      author: "Tú",
-      image: "/placeholder.svg?height=300&width=500",
-    },
-    {
-      id: 2,
-      date: "24 de Diciembre, 2023",
-      title: "Navidad en Familia",
-      content:
-        "Segunda Navidad juntos, esta vez con ambas familias. Fue un día lleno de risas y buenos momentos. Me encantó ver cómo nuestras familias se llevan tan bien.",
-      author: "Tu pareja",
-      image: "/placeholder.svg?height=300&width=500",
-    },
-    {
-      id: 3,
-      date: "14 de Febrero, 2024",
-      title: "San Valentín Sorpresa",
-      content:
-        "No me esperaba esa sorpresa tan especial. Gracias por hacer de este día algo inolvidable. Cada momento contigo es un tesoro.",
-      author: "Tu pareja",
-      image: "/placeholder.svg?height=300&width=500",
-    },
-  ])
+interface DiaryEntry {
+  id: string;
+  date: Timestamp;
+  title: string;
+  content: string;
+  image?: string;
+}
 
+const formatDate = (date: Timestamp) => {
+  const jsDate = date.toDate()
+  const options: Intl.DateTimeFormatOptions = { 
+    year: "numeric", 
+    month: "long", 
+    day: "numeric"
+  }
+  return jsDate.toLocaleDateString("es-ES", options)
+}
+
+export default function DiaryPage() {
+  const [entries, setEntries] = useState<DiaryEntry[]>([])
+  const [loading, setLoading] = useState(true)
   const [newEntry, setNewEntry] = useState({
     title: "",
     content: "",
     image: "",
   })
-
   const [open, setOpen] = useState(false)
+  const [editingEntry, setEditingEntry] = useState<DiaryEntry | null>(null)
 
-  const handleAddEntry = () => {
+  useEffect(() => {
+    // Configurar el listener de Firestore
+    const diaryRef = collection(db, "diario")
+    const q = query(diaryRef, orderBy("date", "desc"))
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const updatedEntries = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as DiaryEntry[]
+      
+      setEntries(updatedEntries)
+      setLoading(false)
+    })
+
+    // Limpiar el listener cuando el componente se desmonte
+    return () => unsubscribe()
+  }, [])
+
+  const handleAddEntry = async () => {
     if (newEntry.title && newEntry.content) {
-      const today = new Date()
-      const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "long", day: "numeric" }
-      const formattedDate = today.toLocaleDateString("es-ES", options)
+      try {
+        if (editingEntry) {
+          // Actualizar entrada existente
+          const entryRef = doc(db, "diario", editingEntry.id)
+          await updateDoc(entryRef, {
+            title: newEntry.title,
+            content: newEntry.content,
+            image: newEntry.image || "/placeholder.svg?height=300&width=500",
+          })
+        } else {
+          // Añadir nueva entrada
+          const diaryRef = collection(db, "diario")
+          await addDoc(diaryRef, {
+            date: Timestamp.now(),
+            title: newEntry.title,
+            content: newEntry.content,
+            image: newEntry.image || "/placeholder.svg?height=300&width=500",
+          })
+        }
 
-      setEntries([
-        {
-          id: entries.length + 1,
-          date: formattedDate,
-          title: newEntry.title,
-          content: newEntry.content,
-          author: "Tú",
-          image: newEntry.image || "/placeholder.svg?height=300&width=500",
-        },
-        ...entries,
-      ])
-
-      setNewEntry({
-        title: "",
-        content: "",
-        image: "",
-      })
-
-      setOpen(false)
+        handleCloseDialog()
+      } catch (error) {
+        console.error("Error al guardar la entrada:", error)
+      }
     }
+  }
+
+  const handleEdit = (entry: DiaryEntry) => {
+    setEditingEntry(entry)
+    setNewEntry({
+      title: entry.title,
+      content: entry.content,
+      image: entry.image || "",
+    })
+    setOpen(true)
+  }
+
+  const handleDelete = async (entry: DiaryEntry) => {
+    try {
+      await deleteDoc(doc(db, "diario", entry.id))
+    } catch (error) {
+      console.error("Error al eliminar la entrada:", error)
+    }
+  }
+
+  const handleCloseDialog = () => {
+    setNewEntry({
+      title: "",
+      content: "",
+      image: "",
+    })
+    setEditingEntry(null)
+    setOpen(false)
   }
 
   return (
@@ -98,7 +137,7 @@ export default function DiaryPage() {
       </header>
 
       <div className="flex justify-end mb-6">
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(isOpen) => isOpen ? setOpen(true) : handleCloseDialog()}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -107,7 +146,7 @@ export default function DiaryPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Añadir nueva entrada</DialogTitle>
+              <DialogTitle>{editingEntry ? "Editar entrada" : "Añadir nueva entrada"}</DialogTitle>
               <DialogDescription>Comparte un momento especial o un pensamiento</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -141,77 +180,70 @@ export default function DiaryPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleAddEntry}>Guardar entrada</Button>
+              <Button onClick={handleAddEntry}>
+                {editingEntry ? "Guardar cambios" : "Guardar entrada"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="all">Todas las entradas</TabsTrigger>
-          <TabsTrigger value="yours">Tus entradas</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all">
-          <ScrollArea className="h-[calc(100vh-300px)]">
-            <div className="space-y-6">
-              {entries.map((entry) => (
-                <DiaryEntry key={entry.id} entry={entry} />
-              ))}
-            </div>
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="yours">
-          <ScrollArea className="h-[calc(100vh-300px)]">
-            <div className="space-y-6">
-              {entries
-                .filter((entry) => entry.author === "Tú")
-                .map((entry) => (
-                  <DiaryEntry key={entry.id} entry={entry} />
-                ))}
-            </div>
-          </ScrollArea>
-        </TabsContent>
-      </Tabs>
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+        </div>
+      ) : (
+        <ScrollArea className="h-[calc(100vh-300px)]">
+          <div className="space-y-6">
+            {entries.map((entry) => (
+              <DiaryEntry 
+                key={entry.id} 
+                entry={entry} 
+                onEdit={() => handleEdit(entry)}
+                onDelete={() => handleDelete(entry)}
+              />
+            ))}
+          </div>
+        </ScrollArea>
+      )}
     </div>
   )
 }
 
-function DiaryEntry({ entry }: { entry: any }) {
+interface DiaryEntryProps {
+  entry: DiaryEntry;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+function DiaryEntry({ entry, onEdit, onDelete }: DiaryEntryProps) {
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>{entry.title}</CardTitle>
-            <CardDescription className="flex items-center gap-1 mt-1">
-              <span>{entry.date}</span>
-              <span className="text-xs">•</span>
-              <span>{entry.author}</span>
+            <CardDescription className="mt-1">
+              {formatDate(entry.date)}
             </CardDescription>
           </div>
-          <Button variant="ghost" size="icon">
-            <Edit className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="icon" onClick={onEdit}>
+              <Edit className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       {entry.image && (
         <div className="px-6">
           <div className="aspect-video rounded-md overflow-hidden">
-            <img src={entry.image || "/placeholder.svg"} alt={entry.title} className="w-full h-full object-cover" />
+            <img src={entry.image} alt={entry.title} className="w-full h-full object-cover" />
           </div>
         </div>
       )}
       <CardContent>
         <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{entry.content}</p>
       </CardContent>
-      <CardFooter className="flex justify-end">
-        <Button variant="ghost" size="sm">
-          Comentar
-        </Button>
-      </CardFooter>
     </Card>
   )
 }

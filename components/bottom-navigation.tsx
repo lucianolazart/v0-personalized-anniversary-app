@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { CalendarHeart, Clapperboard, Clock, GamepadIcon } from "lucide-react"
+import { CalendarHeart, Clapperboard, GamepadIcon, ListTodo } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -11,9 +11,9 @@ export function BottomNavigation() {
 
   const navItems = [
     {
-      name: "Línea de Tiempo",
-      href: "/timeline",
-      icon: Clock,
+      name: "Películas",
+      href: "/movies",
+      icon: Clapperboard,
     },
     {
       name: "Trivia",
@@ -26,9 +26,9 @@ export function BottomNavigation() {
       icon: CalendarHeart,
     },
     {
-      name: "Películas",
-      href: "/movies",
-      icon: Clapperboard,
+      name: "Planes",
+      href: "/plans",
+      icon: ListTodo,
     },
   ]
 

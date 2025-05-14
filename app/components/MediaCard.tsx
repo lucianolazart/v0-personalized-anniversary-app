@@ -12,10 +12,11 @@ interface MediaCardProps {
 }
 
 export function MediaCard({ media, onEdit, onDelete }: MediaCardProps) {
-  const longPressProps = useLongPress({
+  const { isLongPressing, ...pressHandlers } = useLongPress({
     onLongPress: () => onDelete(media),
     onClick: () => onEdit(media),
-    ms: 500,
+    ms: 800,
+    moveThreshold: 5,
   });
 
   const getStateIcon = (state: MediaWithId["state"]) => {
@@ -42,8 +43,8 @@ export function MediaCard({ media, onEdit, onDelete }: MediaCardProps) {
 
   return (
     <Card 
-      className={`overflow-hidden group relative ${longPressProps.isLongPressing ? 'scale-95' : ''} transition-transform cursor-pointer`}
-      {...longPressProps}
+      className={`overflow-hidden group relative ${isLongPressing ? 'scale-95' : ''} transition-transform cursor-pointer`}
+      {...pressHandlers}
     >
       <div className="aspect-[2/3] relative">
         <img
@@ -52,6 +53,7 @@ export function MediaCard({ media, onEdit, onDelete }: MediaCardProps) {
           className="object-cover w-full h-full"
           width={300}
           height={450}
+          draggable={false}
         />
         <div className="absolute top-2 right-2">
           <Badge 
@@ -68,7 +70,7 @@ export function MediaCard({ media, onEdit, onDelete }: MediaCardProps) {
             {getStateText(media.state)}
           </Badge>
         </div>
-        {longPressProps.isLongPressing && (
+        {isLongPressing && (
           <div className="absolute inset-0 bg-red-500/60 flex items-center justify-center">
             <Trash2 className="h-8 w-8 text-white animate-bounce" />
           </div>

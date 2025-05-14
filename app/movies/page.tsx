@@ -385,16 +385,68 @@ function MediaGrid({
   onEdit: (media: MediaWithId) => void;
   onDelete: (media: MediaWithId) => void;
 }) {
+  const [stateFilter, setStateFilter] = useState<MediaWithId["state"] | "all">("all");
+
+  const filteredByState = mediaList.filter(media => 
+    stateFilter === "all" ? true : media.state === stateFilter
+  );
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-      {mediaList.map((media) => (
-        <MediaCard
-          key={media.id}
-          media={media}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
-      ))}
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={stateFilter === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStateFilter("all")}
+          className="flex items-center gap-2"
+        >
+          Todas
+        </Button>
+        <Button
+          variant={stateFilter === "watched" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStateFilter("watched")}
+          className="flex items-center gap-2"
+        >
+          <Check className="h-4 w-4" />
+          Vistas
+        </Button>
+        <Button
+          variant={stateFilter === "in-progress" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStateFilter("in-progress")}
+          className="flex items-center gap-2"
+        >
+          <Clock className="h-4 w-4" />
+          En progreso
+        </Button>
+        <Button
+          variant={stateFilter === "pending" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStateFilter("pending")}
+          className="flex items-center gap-2"
+        >
+          <Star className="h-4 w-4" />
+          Pendientes
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {filteredByState.map((media) => (
+          <MediaCard
+            key={media.id}
+            media={media}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+
+      {filteredByState.length === 0 && (
+        <div className="text-center py-10 text-gray-500">
+          <p>No hay elementos que coincidan con los filtros seleccionados</p>
+        </div>
+      )}
     </div>
   );
 }
