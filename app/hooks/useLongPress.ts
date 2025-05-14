@@ -12,7 +12,7 @@ export const useLongPress = ({
   ms = 500,
 }: LongPressOptions) => {
   const [isLongPressing, setIsLongPressing] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isPressed = useRef(false);
   const didLongPress = useRef(false);
 
@@ -40,6 +40,7 @@ export const useLongPress = ({
     isPressed.current = false;
     if (timerRef.current) {
       clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
   }, []);
 
