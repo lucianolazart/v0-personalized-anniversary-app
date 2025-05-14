@@ -45,13 +45,14 @@ export default function MoviesPage() {
   const [loading, setLoading] = useState(true)
   const [editingMedia, setEditingMedia] = useState<MediaWithId | null>(null)
   const [deletingMedia, setDeletingMedia] = useState<MediaWithId | null>(null)
-  const [newMedia, setNewMedia] = useState<NewMediaFormState>({
+  const initialFormState: NewMediaFormState = {
     title: "",
     type: "pelicula",
     year: new Date().getFullYear(),
     image: "",
     state: "pending",
-  })
+  }
+  const [newMedia, setNewMedia] = useState<NewMediaFormState>(initialFormState)
 
   useEffect(() => {
     // Configurar el listener de Firestore
@@ -111,14 +112,14 @@ export default function MoviesPage() {
     }
   }
 
+  const handleOpenDialog = () => {
+    setNewMedia(initialFormState)
+    setEditingMedia(null)
+    setOpen(true)
+  }
+
   const handleCloseDialog = () => {
-    setNewMedia({
-      title: "",
-      type: "pelicula",
-      year: new Date().getFullYear(),
-      image: "",
-      state: "pending",
-    })
+    setNewMedia(initialFormState)
     setEditingMedia(null)
     setOpen(false)
   }
@@ -191,7 +192,7 @@ export default function MoviesPage() {
           />
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(isOpen) => isOpen ? handleOpenDialog() : handleCloseDialog()}>
           <DialogTrigger asChild>
             <Button className="gap-2 w-full sm:w-auto">
               <Plus className="h-4 w-4" />
@@ -218,6 +219,7 @@ export default function MoviesPage() {
                     value={newMedia.title}
                     onChange={(e) => setNewMedia({ ...newMedia, title: e.target.value })}
                     placeholder="Título"
+                    autoFocus={false}
                   />
                 </div>
                 <div>
@@ -227,6 +229,7 @@ export default function MoviesPage() {
                     type="number"
                     value={newMedia.year}
                     onChange={(e) => setNewMedia({ ...newMedia, year: Number(e.target.value) })}
+                    autoFocus={false}
                   />
                 </div>
               </div>

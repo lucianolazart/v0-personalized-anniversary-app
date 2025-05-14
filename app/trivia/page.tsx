@@ -17,24 +17,24 @@ export default function TriviaPage() {
   // Preguntas de ejemplo - reemplazar con preguntas personalizadas sobre su relación
   const questions = [
     {
-      question: "¿Dónde nos conocimos por primera vez?",
-      options: ["En una fiesta", "En la universidad", "A través de amigos en común", "En un café"],
+      question: "¿Dónde fue nuestra primera cita?",
+      options: ["En la plaza", "En el cine", "En Starbucks", "En la playa"],
       correctAnswer: 2,
     },
     {
-      question: "¿Cuál es mi comida favorita?",
-      options: ["Pizza", "Sushi", "Pasta", "Tacos"],
+      question: "¿En dónde se suponía que iba a ser nuestra primera cita?",
+      options: ["En la plaza", "En Havanna", "En Starbucks", "En el cine"],
       correctAnswer: 1,
     },
     {
       question: "¿Qué película vimos en nuestra primera cita?",
       options: ["Una comedia romántica", "Una película de acción", "Una película de terror", "Un documental"],
-      correctAnswer: 0,
+      correctAnswer: 1,
     },
     {
-      question: "¿Cuál es nuestro lugar favorito para salir?",
-      options: ["El parque", "El cine", "El restaurante italiano", "La playa"],
-      correctAnswer: 3,
+      question: "¿Cuál es nuestro color?",
+      options: ["Naranja", "Azul", "Verde", "Amarillo"],
+      correctAnswer: 0,
     },
     {
       question: "¿Qué canción consideramos 'nuestra canción'?",
@@ -42,9 +42,34 @@ export default function TriviaPage() {
         "Perfect - Ed Sheeran",
         "All of Me - John Legend",
         "Can't Help Falling in Love - Elvis Presley",
-        "Otra canción",
+        "Beautiful Things - Benson Boone",
       ],
+      correctAnswer: 3,
+    },
+    {
+      question: "¿Qué película vimos en lo de Emi?",
+      options: ["The Dark Knight", "Bullet Train", "Harry Potter", "Wicked"],
       correctAnswer: 0,
+    },
+    {
+      question: "¿Cuál de estas series no vimos juntos?",
+      options: ["Friends", "The Office", "Breaking Bad", "The Big Bang Theory"],
+      correctAnswer: 2,
+    },
+    {
+      question: "¿Cuál es nuestra comida predilecta?",
+      options: ["Pizza", "Hamburguesa", "Fideos con salsa", "Tacos"],
+      correctAnswer: 2,
+    },
+    {
+      question: "¿En qué fecha nos conocimos por Tinder?",
+      options: ["9 de junio de 2023", "9 de abril de 2023", "9 de mayo de 2023", "9 de julio de 2023"],
+      correctAnswer: 3,
+    },
+    {
+      question: "¿Cuál de estos regalos NO te di en tus 30 años?",
+      options: ["Posavasos de Veep", "Bufanda de Harry Potter", "Álbum de fotos", "Cupones"],
+      correctAnswer: 1,
     },
   ]
 
