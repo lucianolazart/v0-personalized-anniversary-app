@@ -21,7 +21,14 @@ export const metadata: Metadata = {
   applicationName: 'Nuestro Aniversario',
   formatDetection: {
     telephone: false,
-  }
+  },
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: 'cover'
+  },
 }
 
 export const viewport: Viewport = {

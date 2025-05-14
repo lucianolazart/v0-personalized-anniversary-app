@@ -172,7 +172,7 @@ export default function MoviesPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 pb-safe">
       <header className="text-center mb-8">
         <div className="inline-flex items-center justify-center p-2 bg-purple-100 dark:bg-purple-900/30 rounded-full mb-4">
           <Clapperboard className="h-6 w-6 text-purple-500 dark:text-purple-400" />
@@ -335,40 +335,42 @@ export default function MoviesPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
         </div>
       ) : (
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="w-full sm:w-auto">
-            <TabsTrigger value="all" className="flex-1 sm:flex-none">
-              Todos
-            </TabsTrigger>
-            <TabsTrigger value="movies" className="flex-1 sm:flex-none">
-              Películas
-            </TabsTrigger>
-            <TabsTrigger value="series" className="flex-1 sm:flex-none">
-              Series
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="all">
-            <MediaGrid 
-              mediaList={filteredMedia} 
-              onEdit={handleEdit}
-              onDelete={(media) => setDeletingMedia(media)}
-            />
-          </TabsContent>
-          <TabsContent value="movies">
-            <MediaGrid 
-              mediaList={filteredMedia.filter((media) => media.type === "pelicula")} 
-              onEdit={handleEdit}
-              onDelete={(media) => setDeletingMedia(media)}
-            />
-          </TabsContent>
-          <TabsContent value="series">
-            <MediaGrid 
-              mediaList={filteredMedia.filter((media) => media.type === "serie")} 
-              onEdit={handleEdit}
-              onDelete={(media) => setDeletingMedia(media)}
-            />
-          </TabsContent>
-        </Tabs>
+        <div className="mb-safe">
+          <Tabs defaultValue="all" className="w-full">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="all" className="flex-1 sm:flex-none">
+                Todos
+              </TabsTrigger>
+              <TabsTrigger value="movies" className="flex-1 sm:flex-none">
+                Películas
+              </TabsTrigger>
+              <TabsTrigger value="series" className="flex-1 sm:flex-none">
+                Series
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="all">
+              <MediaGrid 
+                mediaList={filteredMedia} 
+                onEdit={handleEdit}
+                onDelete={(media) => setDeletingMedia(media)}
+              />
+            </TabsContent>
+            <TabsContent value="movies">
+              <MediaGrid 
+                mediaList={filteredMedia.filter((media) => media.type === "pelicula")} 
+                onEdit={handleEdit}
+                onDelete={(media) => setDeletingMedia(media)}
+              />
+            </TabsContent>
+            <TabsContent value="series">
+              <MediaGrid 
+                mediaList={filteredMedia.filter((media) => media.type === "serie")} 
+                onEdit={handleEdit}
+                onDelete={(media) => setDeletingMedia(media)}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
       )}
     </div>
   )

@@ -12,22 +12,25 @@ const config = {
   theme: {
   	container: {
   		center: true,
-  		padding: {
-  			DEFAULT: '1rem',
-  			sm: '2rem',
-  			lg: '4rem',
-  			xl: '5rem',
-  			'2xl': '6rem',
-  		},
+  		padding: "2rem",
   		screens: {
   			'sm': '640px',
   			'md': '768px',
   			'lg': '1024px',
   			'xl': '1280px',
-  			'2xl': '1536px',
+  			"2xl": "1400px",
   		},
   	},
   	extend: {
+  		spacing: {
+  			'safe': 'env(safe-area-inset-bottom)',
+  		},
+  		padding: {
+  			'safe': 'env(safe-area-inset-bottom)',
+  		},
+  		margin: {
+  			'safe': 'env(safe-area-inset-bottom)',
+  		},
   		colors: {
   			border: "hsl(var(--border))",
   			input: "hsl(var(--input))",
