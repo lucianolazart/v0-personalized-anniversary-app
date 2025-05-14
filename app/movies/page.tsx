@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Clapperboard, Film, Search, Star, Tv } from "lucide-react"
+import { Check, Clapperboard, Film, Plus, Search, Star, Tv } from "lucide-react"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,10 +22,10 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import type { MediaWithId, NewMediaFormState } from "../types/media"
 
 export default function MoviesPage() {
-  // Datos de ejemplo - reemplazar con tus propias películas y series
-  const [mediaList, setMediaList] = useState([
+  const [mediaList, setMediaList] = useState<MediaWithId[]>([
     {
       id: 1,
       title: "La La Land",
@@ -34,7 +36,7 @@ export default function MoviesPage() {
       rating: 5,
       notes: "Nuestra primera película juntos. Nos encantó la música.",
       dateWatched: "15 de Agosto, 2022",
-    },
+    } as const,
     {
       id: 2,
       title: "Stranger Things",
@@ -45,7 +47,7 @@ export default function MoviesPage() {
       currentSeason: 3,
       currentEpisode: 4,
       notes: "Nos quedamos en el episodio donde...",
-    },
+    } as const,
     {
       id: 3,
       title: "El Padrino",
@@ -56,7 +58,7 @@ export default function MoviesPage() {
       rating: 4,
       notes: "Clásico que finalmente vimos juntos.",
       dateWatched: "3 de Octubre, 2022",
-    },
+    } as const,
     {
       id: 4,
       title: "Breaking Bad",
@@ -67,7 +69,7 @@ export default function MoviesPage() {
       currentSeason: 2,
       currentEpisode: 8,
       notes: "Estamos enganchados con esta serie.",
-    },
+    } as const,
     {
       id: 5,
       title: "Interestelar",
@@ -78,7 +80,7 @@ export default function MoviesPage() {
       rating: 5,
       notes: "Nos dejó pensando durante días.",
       dateWatched: "12 de Enero, 2023",
-    },
+    } as const,
     {
       id: 6,
       title: "The Office",
@@ -89,12 +91,14 @@ export default function MoviesPage() {
       rating: 5,
       notes: "Nuestra serie de comedia favorita.",
       dateWatched: "Terminada el 5 de Mayo, 2023",
-    },
+      currentSeason: 9,
+      currentEpisode: 23,
+    } as const,
   ])
 
   const [searchTerm, setSearchTerm] = useState("")
   const [open, setOpen] = useState(false)
-  const [newMedia, setNewMedia] = useState({
+  const [newMedia, setNewMedia] = useState<NewMediaFormState>({
     title: "",
     type: "movie",
     year: new Date().getFullYear(),
@@ -102,20 +106,39 @@ export default function MoviesPage() {
     status: "in-progress",
     rating: 0,
     notes: "",
-    currentSeason: 1,
-    currentEpisode: 1,
+    dateWatched: format(new Date(), "d 'de' MMMM, yyyy", { locale: es }),
   })
 
   const handleAddMedia = () => {
     if (newMedia.title) {
-      setMediaList([
-        {
-          id: mediaList.length + 1,
-          ...newMedia,
-          poster: newMedia.poster || "/placeholder.svg?height=450&width=300",
-        },
-        ...mediaList,
-      ])
+      const baseMedia = {
+        id: mediaList.length + 1,
+        title: newMedia.title,
+        year: newMedia.year,
+        poster: newMedia.poster || "/placeholder.svg?height=450&width=300",
+        status: newMedia.status,
+        notes: newMedia.notes,
+      }
+
+      let mediaToAdd: MediaWithId;
+
+      if (newMedia.type === "movie") {
+        mediaToAdd = {
+          ...baseMedia,
+          type: "movie",
+          rating: newMedia.rating || 0,
+          dateWatched: format(new Date(), "d 'de' MMMM, yyyy", { locale: es }),
+        };
+      } else {
+        mediaToAdd = {
+          ...baseMedia,
+          type: "series",
+          currentSeason: newMedia.currentSeason || 1,
+          currentEpisode: newMedia.currentEpisode || 1,
+        };
+      }
+
+      setMediaList([mediaToAdd, ...mediaList])
 
       setNewMedia({
         title: "",
@@ -125,15 +148,16 @@ export default function MoviesPage() {
         status: "in-progress",
         rating: 0,
         notes: "",
-        currentSeason: 1,
-        currentEpisode: 1,
+        dateWatched: format(new Date(), "d 'de' MMMM, yyyy", { locale: es }),
       })
 
       setOpen(false)
     }
   }
 
-  const filteredMedia = mediaList.filter((media) => media.title.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredMedia = mediaList.filter((media) => 
+    media.title.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -185,7 +209,7 @@ export default function MoviesPage() {
                     id="year"
                     type="number"
                     value={newMedia.year}
-                    onChange={(e) => setNewMedia({ ...newMedia, year: Number.parseInt(e.target.value) })}
+                    onChange={(e) => setNewMedia({ ...newMedia, year: Number(e.target.value) })}
                   />
                 </div>
               </div>
@@ -214,7 +238,6 @@ export default function MoviesPage() {
                     </Button>
                   </div>
                 </div>
-
                 <div>
                   <Label>Estado</Label>
                   <div className="flex mt-2">
@@ -233,57 +256,27 @@ export default function MoviesPage() {
                       className="rounded-l-none flex-1"
                       onClick={() => setNewMedia({ ...newMedia, status: "in-progress" })}
                     >
-                      <Clock className="h-4 w-4 mr-2" />
-                      En proceso
+                      <Star className="h-4 w-4 mr-2" />
+                      En progreso
                     </Button>
                   </div>
                 </div>
               </div>
 
-              {newMedia.type === "series" && newMedia.status === "in-progress" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="season">Temporada actual</Label>
-                    <Input
-                      id="season"
-                      type="number"
-                      min="1"
-                      value={newMedia.currentSeason}
-                      onChange={(e) => setNewMedia({ ...newMedia, currentSeason: Number.parseInt(e.target.value) })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="episode">Episodio actual</Label>
-                    <Input
-                      id="episode"
-                      type="number"
-                      min="1"
-                      value={newMedia.currentEpisode}
-                      onChange={(e) => setNewMedia({ ...newMedia, currentEpisode: Number.parseInt(e.target.value) })}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {newMedia.status === "watched" && (
+              {newMedia.type === "movie" && (
                 <div>
                   <Label>Valoración</Label>
-                  <div className="flex gap-1 mt-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
+                  <div className="flex gap-2 mt-2">
+                    {[1, 2, 3, 4, 5].map((rating) => (
                       <Button
-                        key={star}
+                        key={rating}
                         type="button"
-                        variant="ghost"
+                        variant={(newMedia.rating || 0) >= rating ? "default" : "outline"}
                         size="icon"
-                        onClick={() => setNewMedia({ ...newMedia, rating: star })}
+                        className="h-8 w-8"
+                        onClick={() => setNewMedia({ ...newMedia, rating })}
                       >
-                        <Star
-                          className={`h-5 w-5 ${
-                            star <= newMedia.rating
-                              ? "fill-yellow-400 text-yellow-400"
-                              : "text-gray-300 dark:text-gray-600"
-                          }`}
-                        />
+                        <Star className="h-4 w-4" />
                       </Button>
                     ))}
                   </div>
@@ -291,136 +284,93 @@ export default function MoviesPage() {
               )}
 
               <div>
-                <Label htmlFor="poster">URL del póster (opcional)</Label>
-                <Input
-                  id="poster"
-                  value={newMedia.poster}
-                  onChange={(e) => setNewMedia({ ...newMedia, poster: e.target.value })}
-                  placeholder="https://ejemplo.com/poster.jpg"
-                />
-              </div>
-
-              <div>
                 <Label htmlFor="notes">Notas</Label>
                 <Textarea
                   id="notes"
                   value={newMedia.notes}
                   onChange={(e) => setNewMedia({ ...newMedia, notes: e.target.value })}
-                  placeholder="Añade notas o comentarios sobre esta película/serie..."
+                  placeholder="Escribe tus pensamientos..."
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleAddMedia}>Guardar</Button>
+              <Button type="submit" onClick={handleAddMedia}>
+                Guardar
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="all">Todas</TabsTrigger>
-          <TabsTrigger value="watched">Vistas</TabsTrigger>
-          <TabsTrigger value="in-progress">En proceso</TabsTrigger>
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="all" className="flex-1 sm:flex-none">
+            Todos
+          </TabsTrigger>
+          <TabsTrigger value="movies" className="flex-1 sm:flex-none">
+            Películas
+          </TabsTrigger>
+          <TabsTrigger value="series" className="flex-1 sm:flex-none">
+            Series
+          </TabsTrigger>
         </TabsList>
-
         <TabsContent value="all">
           <MediaGrid mediaList={filteredMedia} />
         </TabsContent>
-
-        <TabsContent value="watched">
-          <MediaGrid mediaList={filteredMedia.filter((media) => media.status === "watched")} />
+        <TabsContent value="movies">
+          <MediaGrid mediaList={filteredMedia.filter((media) => media.type === "movie")} />
         </TabsContent>
-
-        <TabsContent value="in-progress">
-          <MediaGrid mediaList={filteredMedia.filter((media) => media.status === "in-progress")} />
+        <TabsContent value="series">
+          <MediaGrid mediaList={filteredMedia.filter((media) => media.type === "series")} />
         </TabsContent>
       </Tabs>
     </div>
   )
 }
 
-function MediaGrid({ mediaList }: { mediaList: any[] }) {
+function MediaGrid({ mediaList }: { mediaList: MediaWithId[] }) {
   return (
-    <ScrollArea className="h-[calc(100vh-300px)]">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {mediaList.map((media) => (
-          <Card key={media.id} className="overflow-hidden">
-            <div className="relative aspect-[2/3] overflow-hidden">
-              <img src={media.poster || "/placeholder.svg"} alt={media.title} className="w-full h-full object-cover" />
-              <div className="absolute top-2 right-2">
-                <Badge variant={media.status === "watched" ? "default" : "secondary"}>
-                  {media.status === "watched" ? (
-                    <span className="flex items-center gap-1">
-                      <Check className="h-3 w-3" />
-                      Vista
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      En proceso
-                    </span>
-                  )}
-                </Badge>
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                <h3 className="font-medium text-white truncate">{media.title}</h3>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-white/80">
-                    {media.year} • {media.type === "movie" ? "Película" : "Serie"}
-                  </span>
-                  {media.status === "watched" && media.rating && (
-                    <div className="flex items-center">
-                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 mr-1" />
-                      <span className="text-xs text-white/80">{media.rating}/5</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      {mediaList.map((media) => (
+        <Card key={media.id} className="overflow-hidden">
+          <div className="aspect-[2/3] relative">
+            <img
+              src={media.poster}
+              alt={media.title}
+              className="object-cover"
+              width={300}
+              height={450}
+            />
+            <div className="absolute top-2 right-2">
+              <Badge variant={media.status === "watched" ? "default" : "secondary"}>
+                {media.status === "watched" ? "Vista" : "En progreso"}
+              </Badge>
             </div>
-            {media.type === "series" && media.status === "in-progress" && (
-              <CardFooter className="p-2 text-xs text-gray-500 dark:text-gray-400">
-                T{media.currentSeason} E{media.currentEpisode}
-              </CardFooter>
+          </div>
+          <CardFooter className="flex-col items-start p-4">
+            <div className="flex items-start justify-between w-full">
+              <div>
+                <h3 className="font-semibold">{media.title}</h3>
+                <p className="text-sm text-gray-500">{media.year}</p>
+              </div>
+              {media.type === "movie" && media.rating > 0 && (
+                <div className="flex">
+                  <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                  <span className="ml-1 text-sm">{media.rating}</span>
+                </div>
+              )}
+            </div>
+            {media.type === "series" && (
+              <p className="text-sm text-gray-500 mt-1">
+                Temporada {media.currentSeason}, Episodio {media.currentEpisode}
+              </p>
             )}
-          </Card>
-        ))}
-      </div>
-    </ScrollArea>
-  )
-}
-
-function Plus({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  )
-}
-
-function Clock({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
+            {media.notes && (
+              <p className="text-sm text-gray-600 mt-2 line-clamp-2">{media.notes}</p>
+            )}
+          </CardFooter>
+        </Card>
+      ))}
+    </div>
   )
 }
