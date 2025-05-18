@@ -257,6 +257,7 @@ export default function PlansPage() {
                 <Input
                   id="date"
                   type="date"
+                  className="w-full"
                   value={newPlan.date}
                   onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })}
                 />
