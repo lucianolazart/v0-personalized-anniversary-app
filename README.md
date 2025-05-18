@@ -9,3 +9,4 @@
 - Ya no se pueden editar las películas
 - Agregar imagen de ícono a la app
 - Cambiar nombre de la app a Lazarski
+- Agregar estado "al día" para series

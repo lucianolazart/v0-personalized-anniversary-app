@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 
 export function GET() {
   const manifest = {
-    name: 'Nuestro Aniversario',
-    short_name: 'Aniversario',
-    description: 'Una aplicación especial para celebrar nuestro segundo aniversario',
+    name: 'Lazarski',
+    short_name: 'Lazarski',
+    description: 'Una aplicación especial para nosotros',
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',

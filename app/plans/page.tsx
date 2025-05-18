@@ -307,24 +307,24 @@ export default function PlansPage() {
                     plan.completed && "opacity-60"
                   )}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-2">
+                  <CardHeader className="p-4 pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2 min-w-0">
                         <Checkbox
                           checked={plan.completed}
                           onCheckedChange={() => handleToggleComplete(plan)}
                           className="mt-1"
                         />
-                        <div>
+                        <div className="min-w-0">
                           <CardTitle className={cn(
-                            "flex items-center gap-2",
+                            "flex items-center gap-2 text-base",
                             plan.completed && "line-through"
                           )}>
-                            <span className="text-xl">{categoryEmojis[plan.category]}</span>
-                            {plan.title}
+                            <span>{categoryEmojis[plan.category]}</span>
+                            <span className="truncate">{plan.title}</span>
                           </CardTitle>
                           {plan.date && (
-                            <CardDescription className="flex items-center gap-1 mt-1">
+                            <CardDescription className="flex items-center gap-1 mt-0.5">
                               <Calendar className="h-3 w-3" />
                               {new Date(plan.date).toLocaleDateString("es-ES", {
                                 year: "numeric",
@@ -335,31 +335,32 @@ export default function PlansPage() {
                           )}
                         </div>
                       </div>
-                      <Badge variant="secondary" className={getCategoryColor(plan.category)}>
+                      <Badge variant="secondary" className={cn("shrink-0", getCategoryColor(plan.category))}>
                         <Tag className="h-3 w-3 mr-1" />
                         {categoryNames[plan.category]}
                       </Badge>
                     </div>
                   </CardHeader>
                   {plan.description && (
-                    <CardContent className="pb-3">
-                      <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line">
+                    <CardContent className="px-4 py-2">
+                      <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line line-clamp-2">
                         {plan.description}
                       </p>
                     </CardContent>
                   )}
-                  <CardFooter className="flex justify-end gap-2">
+                  <CardFooter className="flex justify-end gap-2 px-4 py-2">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEdit(plan)}
+                      className="h-8 px-2"
                     >
                       Editar
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                      className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                       onClick={() => handleDelete(plan)}
                     >
                       Eliminar

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Check, Clapperboard, Film, Plus, Search, Star, Tv, Clock, Edit2, Trash2 } from "lucide-react"
+import { Check, Clapperboard, Film, Plus, Search, Star, Tv, Clock, Edit2, Trash2, RefreshCw } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
@@ -43,6 +43,7 @@ export default function MoviesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [editingMedia, setEditingMedia] = useState<MediaWithId | null>(null)
   const [deletingMedia, setDeletingMedia] = useState<MediaWithId | null>(null)
   const initialFormState: NewMediaFormState = {
@@ -83,6 +84,7 @@ export default function MoviesPage() {
   const handleAddMedia = async () => {
     if (newMedia.title) {
       try {
+        setSaving(true)
         if (editingMedia) {
           // Actualizar media existente
           const mediaRef = doc(db, "peliculas", editingMedia.id)
@@ -108,6 +110,8 @@ export default function MoviesPage() {
         handleCloseDialog()
       } catch (error) {
         console.error("Error al guardar media:", error)
+      } finally {
+        setSaving(false)
       }
     }
   }
@@ -119,12 +123,19 @@ export default function MoviesPage() {
   }
 
   const handleCloseDialog = () => {
+    // Prevenir el scroll al cerrar
+    const currentScroll = window.scrollY
     setNewMedia(initialFormState)
     setEditingMedia(null)
     setOpen(false)
+    // Restaurar la posición del scroll después de un pequeño delay
+    setTimeout(() => {
+      window.scrollTo(0, currentScroll)
+    }, 0)
   }
 
   const handleEdit = (media: MediaWithId) => {
+    const currentScroll = window.scrollY
     setEditingMedia(media)
     setNewMedia({
       title: media.title,
@@ -134,6 +145,10 @@ export default function MoviesPage() {
       state: media.state,
     })
     setOpen(true)
+    // Restaurar la posición del scroll después de un pequeño delay
+    setTimeout(() => {
+      window.scrollTo(0, currentScroll)
+    }, 0)
   }
 
   const handleDelete = async (media: MediaWithId) => {
@@ -199,7 +214,7 @@ export default function MoviesPage() {
               Añadir película/serie
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>
                 {editingMedia ? "Editar película o serie" : "Añadir nueva película o serie"}
@@ -260,7 +275,7 @@ export default function MoviesPage() {
 
               <div>
                 <Label>Estado</Label>
-                <div className="grid grid-cols-3 gap-2 mt-2">
+                <div className="grid grid-cols-2 gap-2 mt-2">
                   <Button
                     type="button"
                     variant={newMedia.state === "watched" ? "default" : "outline"}
@@ -288,6 +303,15 @@ export default function MoviesPage() {
                     <Star className="h-4 w-4 mr-2" />
                     Pendiente
                   </Button>
+                  <Button
+                    type="button"
+                    variant={newMedia.state === "up-to-date" ? "default" : "outline"}
+                    className="w-full"
+                    onClick={() => setNewMedia({ ...newMedia, state: "up-to-date" })}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Al día
+                  </Button>
                 </div>
               </div>
 
@@ -302,8 +326,15 @@ export default function MoviesPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" onClick={handleAddMedia}>
-                {editingMedia ? "Guardar cambios" : "Guardar"}
+              <Button type="submit" onClick={handleAddMedia} disabled={saving}>
+                {saving ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    Guardando...
+                  </>
+                ) : (
+                  editingMedia ? "Guardar cambios" : "Guardar"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -428,6 +459,15 @@ function MediaGrid({
         >
           <Star className="h-4 w-4" />
           Pendientes
+        </Button>
+        <Button
+          variant={stateFilter === "up-to-date" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStateFilter("up-to-date")}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Al día
         </Button>
       </div>
 

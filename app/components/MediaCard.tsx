@@ -1,9 +1,9 @@
-import { Check, Clock, Edit2, Star, Trash2 } from "lucide-react"
+import { Check, Clock, Edit2, Star, Trash2, RefreshCw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardFooter } from "@/components/ui/card"
 import { MediaWithId } from "../types/media"
-import { useLongPress } from "../hooks/useLongPress"
+import { cn } from "@/lib/utils"
 
 interface MediaCardProps {
   media: MediaWithId;
@@ -12,13 +12,6 @@ interface MediaCardProps {
 }
 
 export function MediaCard({ media, onEdit, onDelete }: MediaCardProps) {
-  const { isLongPressing, ...pressHandlers } = useLongPress({
-    onLongPress: () => onDelete(media),
-    onClick: () => onEdit(media),
-    ms: 800,
-    moveThreshold: 5,
-  });
-
   const getStateIcon = (state: MediaWithId["state"]) => {
     switch (state) {
       case "watched":
@@ -27,6 +20,8 @@ export function MediaCard({ media, onEdit, onDelete }: MediaCardProps) {
         return <Clock className="h-4 w-4" />;
       case "pending":
         return <Star className="h-4 w-4" />;
+      case "up-to-date":
+        return <RefreshCw className="h-4 w-4" />;
     }
   };
 
@@ -38,14 +33,13 @@ export function MediaCard({ media, onEdit, onDelete }: MediaCardProps) {
         return "En progreso";
       case "pending":
         return "Pendiente";
+      case "up-to-date":
+        return "Al día";
     }
   };
 
   return (
-    <Card 
-      className={`overflow-hidden group relative ${isLongPressing ? 'scale-95' : ''} transition-transform cursor-pointer`}
-      {...pressHandlers}
-    >
+    <Card className="overflow-hidden group relative">
       <div className="aspect-[2/3] relative">
         <img
           src={media.image}
@@ -62,26 +56,48 @@ export function MediaCard({ media, onEdit, onDelete }: MediaCardProps) {
                 ? "default" 
                 : media.state === "in-progress" 
                 ? "secondary"
+                : media.state === "up-to-date"
+                ? "outline"
                 : "outline"
             }
-            className="flex gap-1 items-center"
+            className={cn(
+              "flex gap-1 items-center",
+              media.state === "up-to-date" && "border-green-200 bg-green-100 dark:bg-green-900/30 dark:border-green-800 text-green-700 dark:text-green-400"
+            )}
           >
             {getStateIcon(media.state)}
             {getStateText(media.state)}
           </Badge>
         </div>
-        {isLongPressing && (
-          <div className="absolute inset-0 bg-red-500/60 flex items-center justify-center">
-            <Trash2 className="h-8 w-8 text-white animate-bounce" />
-          </div>
-        )}
+        <div className="absolute bottom-2 right-2 flex gap-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-8 w-8 bg-black/20 hover:bg-black/40 backdrop-blur-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(media);
+            }}
+          >
+            <Edit2 className="h-4 w-4 text-white" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-8 w-8 bg-black/20 hover:bg-black/40 backdrop-blur-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(media);
+            }}
+          >
+            <Trash2 className="h-4 w-4 text-red-400" />
+          </Button>
+        </div>
       </div>
       <CardFooter className="flex-col items-start p-4">
-        <div className="flex items-start justify-between w-full">
-          <div>
-            <h3 className="font-semibold">{media.title}</h3>
-            <p className="text-sm text-gray-500">{media.year}</p>
-          </div>
+        <div className="w-full">
+          <h3 className="font-semibold line-clamp-2">{media.title}</h3>
+          <p className="text-sm text-gray-500">{media.year}</p>
         </div>
       </CardFooter>
     </Card>

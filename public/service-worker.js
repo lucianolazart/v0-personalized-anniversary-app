@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aniversario-v1';
+const CACHE_NAME = 'lazarski-v1';
 const urlsToCache = [
   '/',
   '/index.html',

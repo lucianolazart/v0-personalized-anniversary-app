@@ -2,9 +2,9 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Nuestro Aniversario',
-    short_name: 'Aniversario',
-    description: 'Una aplicación especial para celebrar nuestro segundo aniversario',
+    name: 'Lazarski',
+    short_name: 'Lazarski',
+    description: 'Una aplicación especial para nosotros',
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',
@@ -15,11 +15,6 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: '192x192',
         type: 'image/png',
         purpose: 'maskable'
-      },
-      {
-        src: '/icons/icon-384x384.png',
-        sizes: '384x384',
-        type: 'image/png'
       },
       {
         src: '/icons/icon-512x512.png',

@@ -217,6 +217,8 @@ interface DiaryEntryProps {
 }
 
 function DiaryEntry({ entry, onEdit, onDelete }: DiaryEntryProps) {
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+
   return (
     <Card>
       <CardHeader>
@@ -235,11 +237,37 @@ function DiaryEntry({ entry, onEdit, onDelete }: DiaryEntryProps) {
         </div>
       </CardHeader>
       {entry.image && (
-        <div className="px-6">
-          <div className="aspect-video rounded-md overflow-hidden">
-            <img src={entry.image} alt={entry.title} className="w-full h-full object-cover" />
+        <>
+          <div className="px-6">
+            <div 
+              className="h-48 rounded-md overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => setImageDialogOpen(true)}
+            >
+              <img 
+                src={entry.image} 
+                alt={entry.title} 
+                className="w-full h-full object-cover" 
+              />
+            </div>
           </div>
-        </div>
+          <Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>{entry.title}</DialogTitle>
+                <DialogDescription>
+                  {formatDate(entry.date)}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="relative w-full">
+                <img
+                  src={entry.image}
+                  alt={entry.title}
+                  className="w-full rounded-lg"
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
       <CardContent>
         <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{entry.content}</p>

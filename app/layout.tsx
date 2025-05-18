@@ -9,8 +9,8 @@ import { FirebaseProvider } from "./context/firebase-context"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Nuestro Aniversario",
-  description: "Una aplicación especial para celebrar nuestro segundo aniversario",
+  title: "Lazarski",
+  description: "Una aplicación especial para nosotros",
   generator: 'v0.dev',
   manifest: '/manifest.json',
   appleWebApp: {
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'Nuestro Aniversario',
   },
-  applicationName: 'Nuestro Aniversario',
+  applicationName: 'Lazarski',
   formatDetection: {
     telephone: false,
   },

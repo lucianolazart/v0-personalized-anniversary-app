@@ -4,7 +4,7 @@ export function GET() {
   const swContent = `
     self.addEventListener('install', (event) => {
       event.waitUntil(
-        caches.open('aniversario-v1').then((cache) => {
+        caches.open('lazarski-v1').then((cache) => {
           return cache.addAll([
             '/',
             '/index.html',
