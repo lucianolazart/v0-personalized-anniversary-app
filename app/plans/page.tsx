@@ -231,7 +231,7 @@ export default function PlansPage() {
                 {editingPlan ? "Modifica los detalles del plan" : "Añade un nuevo plan para hacer juntos"}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-4 py-4 w-full">
               <div className="grid gap-2">
                 <Label htmlFor="title">Título</Label>
                 <Input
@@ -257,7 +257,7 @@ export default function PlansPage() {
                 <Input
                   id="date"
                   type="date"
-                  className="w-full"
+                  className="w-full max-w-[100%]"
                   value={newPlan.date}
                   onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })}
                 />
