@@ -293,8 +293,8 @@ export default function PlansPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
         </div>
       ) : (
-        <ScrollArea className="h-[calc(100vh-300px)]">
-          <div className="space-y-4">
+        <ScrollArea className="h-[calc(100vh-300px)] pb-24">
+          <div className="space-y-4 mb-20">
             {filteredPlans.length === 0 ? (
               <div className="text-center py-10 text-gray-500">
                 <p>No hay planes que coincidan con los filtros seleccionados</p>
@@ -318,11 +318,11 @@ export default function PlansPage() {
                         />
                         <div className="min-w-0">
                           <CardTitle className={cn(
-                            "flex items-center gap-2 text-base",
+                            "flex items-center gap-2 text-base break-words",
                             plan.completed && "line-through"
                           )}>
                             <span>{categoryEmojis[plan.category]}</span>
-                            <span className="truncate">{plan.title}</span>
+                            <span className="break-all">{plan.title}</span>
                           </CardTitle>
                           {plan.date && (
                             <CardDescription className="flex items-center gap-1 mt-0.5">
@@ -344,7 +344,7 @@ export default function PlansPage() {
                   </CardHeader>
                   {plan.description && (
                     <CardContent className="px-4 py-2">
-                      <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line line-clamp-2">
+                      <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line break-words">
                         {plan.description}
                       </p>
                     </CardContent>
