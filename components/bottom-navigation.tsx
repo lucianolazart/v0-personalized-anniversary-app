@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { CalendarHeart, Clapperboard, GamepadIcon, ListTodo } from "lucide-react"
+import { Clapperboard, ListTodo, Timer } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -11,24 +11,19 @@ export function BottomNavigation() {
 
   const navItems = [
     {
-      name: "Películas",
+      name: "Movies",
       href: "/movies",
       icon: Clapperboard,
     },
     {
-      name: "Trivia",
-      href: "/trivia",
-      icon: GamepadIcon,
-    },
-    {
-      name: "Diario",
-      href: "/diary",
-      icon: CalendarHeart,
-    },
-    {
-      name: "Planes",
+      name: "Plans",
       href: "/plans",
       icon: ListTodo,
+    },
+    {
+      name: "Countdown",
+      href: "/countdown",
+      icon: Timer,
     },
   ]
 
@@ -44,11 +39,11 @@ export function BottomNavigation() {
               className={cn(
                 "flex flex-col items-center justify-center w-full h-full transition-colors",
                 isActive
-                  ? "text-rose-500 dark:text-rose-400"
-                  : "text-gray-500 dark:text-gray-400 hover:text-rose-400 dark:hover:text-rose-300",
+                  ? "text-[#EA580C] dark:text-[#FB923C]"
+                  : "text-gray-500 dark:text-gray-400 hover:text-[#FB923C] dark:hover:text-[#FDBA74]",
               )}
             >
-              {isActive ? <div className="absolute top-0 w-1/4 h-0.5 bg-rose-500 dark:bg-rose-400" /> : null}
+              {isActive ? <div className="absolute top-0 w-1/4 h-0.5 bg-[#EA580C] dark:bg-orange-400" /> : null}
               <item.icon className="h-5 w-5 mb-1" />
               <span className="text-xs font-medium">{item.name}</span>
             </button>

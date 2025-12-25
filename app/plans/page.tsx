@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ListTodo, Plus, Calendar, Tag } from "lucide-react"
-import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore"
+import { Plus, Calendar, MoreVertical, CheckCircle2 } from "lucide-react"
+import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "../lib/firebase"
 import type { Plan, NewPlanFormState } from "../types/plans"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -28,8 +27,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
 const categoryEmojis: Record<Plan["category"], string> = {
@@ -41,11 +45,11 @@ const categoryEmojis: Record<Plan["category"], string> = {
 }
 
 const categoryNames: Record<Plan["category"], string> = {
-  gastronomia: "Gastronomía",
-  aire_libre: "Aire Libre",
-  entretenimiento: "Entretenimiento",
-  educativo: "Educativo",
-  otros: "Otros"
+  gastronomia: "Dining",
+  aire_libre: "Outdoor",
+  entretenimiento: "Entertainment",
+  educativo: "Educational",
+  otros: "Other"
 }
 
 export default function PlansPage() {
@@ -106,7 +110,7 @@ export default function PlansPage() {
 
         handleCloseDialog()
       } catch (error) {
-        console.error("Error al guardar el plan:", error)
+        console.error("Error saving plan:", error)
       }
     }
   }
@@ -118,7 +122,7 @@ export default function PlansPage() {
         completed: !plan.completed
       })
     } catch (error) {
-      console.error("Error al actualizar el estado del plan:", error)
+      console.error("Error updating plan status:", error)
     }
   }
 
@@ -126,7 +130,7 @@ export default function PlansPage() {
     try {
       await deleteDoc(doc(db, "planes", plan.id))
     } catch (error) {
-      console.error("Error al eliminar el plan:", error)
+      console.error("Error deleting plan:", error)
     }
   }
 
@@ -153,121 +157,146 @@ export default function PlansPage() {
     setOpen(false)
   }
 
-  const getCategoryColor = (category: Plan["category"]) => {
-    switch (category) {
-      case "gastronomia":
-        return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
-      case "aire_libre":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-      case "entretenimiento":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
-      case "educativo":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-      case "otros":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
-    }
-  }
-
   const filteredPlans = plans.filter(plan => {
     const matchesCategory = categoryFilter === "todas" || plan.category === categoryFilter
     const matchesCompletion = showCompleted ? true : !plan.completed
     return matchesCategory && matchesCompletion
   })
 
+  const filterOptions: Array<{ value: Plan["category"] | "todas"; label: string; emoji?: string }> = [
+    { value: "todas", label: "All Plans", emoji: "✨" },
+    { value: "gastronomia", label: categoryNames.gastronomia, emoji: categoryEmojis.gastronomia },
+    { value: "aire_libre", label: categoryNames.aire_libre, emoji: categoryEmojis.aire_libre },
+    { value: "entretenimiento", label: categoryNames.entretenimiento, emoji: categoryEmojis.entretenimiento },
+    { value: "educativo", label: categoryNames.educativo, emoji: categoryEmojis.educativo },
+    { value: "otros", label: categoryNames.otros, emoji: categoryEmojis.otros },
+  ]
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <header className="text-center mb-8">
-        <div className="inline-flex items-center justify-center p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-full mb-4">
-          <ListTodo className="h-6 w-6 text-emerald-500 dark:text-emerald-400" />
-        </div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Nuestros Planes</h1>
-        <p className="text-gray-600 dark:text-gray-300 mt-2">Ideas y sueños por cumplir juntos</p>
-      </header>
+    <div className="min-h-screen bg-white dark:bg-gray-950">
+      <div className="container mx-auto px-4 py-6 max-w-4xl">
+        {/* Header */}
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1 tracking-tight">
+            Plans
+          </h1>
+        </header>
 
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <Select value={categoryFilter} onValueChange={(value: Plan["category"] | "todas") => setCategoryFilter(value)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Categoría" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">✨ Todas</SelectItem>
-              <SelectItem value="gastronomia">{categoryEmojis.gastronomia} {categoryNames.gastronomia}</SelectItem>
-              <SelectItem value="aire_libre">{categoryEmojis.aire_libre} {categoryNames.aire_libre}</SelectItem>
-              <SelectItem value="entretenimiento">{categoryEmojis.entretenimiento} {categoryNames.entretenimiento}</SelectItem>
-              <SelectItem value="educativo">{categoryEmojis.educativo} {categoryNames.educativo}</SelectItem>
-              <SelectItem value="otros">{categoryEmojis.otros} {categoryNames.otros}</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Filter Buttons */}
+        <div className="mb-6 space-y-3">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+            {filterOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setCategoryFilter(option.value)}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",
+                  "border",
+                  categoryFilter === option.value
+                    ? "bg-[#EA580C] text-white border-[#EA580C] shadow-sm"
+                    : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                )}
+              >
+                {option.emoji && <span className="mr-1.5">{option.emoji}</span>}
+                {option.label}
+              </button>
+            ))}
+          </div>
 
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="showCompleted"
-              checked={showCompleted}
-              onCheckedChange={(checked) => setShowCompleted(checked as boolean)}
-            />
-            <label
-              htmlFor="showCompleted"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+            <button
+              onClick={() => setShowCompleted(false)}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",
+                "border",
+                !showCompleted
+                  ? "bg-[#EA580C] text-white border-[#EA580C] shadow-sm"
+                  : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+              )}
             >
-              Mostrar completados
-            </label>
+              Active
+            </button>
+            <button
+              onClick={() => setShowCompleted(true)}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",
+                "border",
+                showCompleted
+                  ? "bg-[#EA580C] text-white border-[#EA580C] shadow-sm"
+                  : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+              )}
+            >
+              Completed
+            </button>
           </div>
         </div>
 
         <Dialog open={open} onOpenChange={(isOpen) => isOpen ? handleOpenDialog() : handleCloseDialog()}>
           <DialogTrigger asChild>
-            <Button className="gap-2 w-full sm:w-auto">
-              <Plus className="h-4 w-4" />
-              Nuevo plan
+            <Button 
+              className="w-full mb-6 bg-[#EA580C] hover:bg-[#C2410C] text-white shadow-sm font-medium"
+              size="lg"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              New Plan
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>
-                {editingPlan ? "Editar plan" : "Añadir nuevo plan"}
+              <DialogTitle className="text-xl font-semibold">
+                {editingPlan ? "Edit Plan" : "Add New Plan"}
               </DialogTitle>
-              <DialogDescription>
-                {editingPlan ? "Modifica los detalles del plan" : "Añade un nuevo plan para hacer juntos"}
+              <DialogDescription className="text-gray-500 dark:text-gray-400">
+                {editingPlan ? "Modify the plan details" : "Add a new plan to do together"}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4 w-full">
+            <div className="grid gap-5 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="title">Título</Label>
+                <Label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Title
+                </Label>
                 <Input
                   id="title"
                   value={newPlan.title}
                   onChange={(e) => setNewPlan({ ...newPlan, title: e.target.value })}
-                  placeholder="¿Qué plan tienes en mente?"
+                  placeholder="Enter plan title"
+                  className="h-11 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="description">Descripción (opcional)</Label>
+                <Label htmlFor="description" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Description (optional)
+                </Label>
                 <Textarea
                   id="description"
                   value={newPlan.description}
                   onChange={(e) => setNewPlan({ ...newPlan, description: e.target.value })}
-                  placeholder="Añade más detalles sobre el plan..."
+                  placeholder="Add more details..."
+                  className="min-h-[100px] border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="date">Fecha (opcional)</Label>
+                <Label htmlFor="date" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Date (optional)
+                </Label>
                 <Input
                   id="date"
                   type="date"
-                  className="w-full max-w-[100%]"
+                  className="h-11 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
                   value={newPlan.date}
                   onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })}
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="category">Categoría</Label>
+                <Label htmlFor="category" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Category
+                </Label>
                 <Select value={newPlan.category} onValueChange={(value: Plan["category"]) => setNewPlan({ ...newPlan, category: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona categoría" />
+                  <SelectTrigger className="h-11 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]">
+                    <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="gastronomia">{categoryEmojis.gastronomia} {categoryNames.gastronomia}</SelectItem>
@@ -280,8 +309,11 @@ export default function PlansPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleAddPlan}>
-                {editingPlan ? "Guardar cambios" : "Guardar plan"}
+              <Button 
+                onClick={handleAddPlan}
+                className="bg-[#EA580C] hover:bg-[#C2410C] text-white font-medium"
+              >
+                {editingPlan ? "Save Changes" : "Save Plan"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -290,88 +322,121 @@ export default function PlansPage() {
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#FED7AA] border-t-[#EA580C]"></div>
         </div>
       ) : (
-        <ScrollArea className="h-[calc(100vh-300px)] pb-24">
-          <div className="space-y-4 mb-20">
-            {filteredPlans.length === 0 ? (
-              <div className="text-center py-10 text-gray-500">
-                <p>No hay planes que coincidan con los filtros seleccionados</p>
-              </div>
-            ) : (
-              filteredPlans.map((plan) => (
-                <Card
-                  key={plan.id}
-                  className={cn(
-                    "transition-opacity",
-                    plan.completed && "opacity-60"
-                  )}
-                >
-                  <CardHeader className="p-4 pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2 min-w-0">
-                        <Checkbox
-                          checked={plan.completed}
-                          onCheckedChange={() => handleToggleComplete(plan)}
-                          className="mt-1"
-                        />
-                        <div className="min-w-0">
-                          <CardTitle className={cn(
-                            "flex items-center gap-2 text-base break-words",
-                            plan.completed && "line-through"
-                          )}>
-                            <span>{categoryEmojis[plan.category]}</span>
-                            <span className="break-all">{plan.title}</span>
-                          </CardTitle>
-                          {plan.date && (
-                            <CardDescription className="flex items-center gap-1 mt-0.5">
-                              <Calendar className="h-3 w-3" />
-                              {new Date(plan.date).toLocaleDateString("es-ES", {
+        <div className="space-y-3 pb-24">
+          {filteredPlans.length === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+                No plans match the selected filters
+              </p>
+            </div>
+          ) : (
+            filteredPlans.map((plan) => (
+              <Card
+                key={plan.id}
+                className={cn(
+                  "border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all",
+                  "bg-white dark:bg-gray-900",
+                  plan.completed && "opacity-60"
+                )}
+              >
+                <CardHeader className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={plan.completed}
+                      onCheckedChange={() => handleToggleComplete(plan)}
+                      className={cn(
+                        "mt-0.5 h-5 w-5 rounded-md border-2",
+                        plan.completed 
+                          ? "bg-[#EA580C] border-[#EA580C] text-white" 
+                          : "border-gray-300 dark:border-gray-700"
+                      )}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <CardTitle className={cn(
+                          "text-base font-semibold text-gray-900 dark:text-white leading-tight flex items-center gap-2",
+                          plan.completed && "line-through text-gray-400 dark:text-gray-500"
+                        )}>
+                          <span>{categoryEmojis[plan.category]}</span>
+                          <span>{plan.title}</span>
+                        </CardTitle>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem onClick={() => handleEdit(plan)}>
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDelete(plan)}
+                              className="text-red-600 focus:text-red-600 dark:text-red-400"
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {plan.date && (
+                        <CardDescription className="flex items-center gap-1.5 mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>
+                            {(() => {
+                              const date = new Date(plan.date)
+                              const dateStr = date.toLocaleDateString("en-US", {
+                                weekday: "long",
                                 year: "numeric",
                                 month: "long",
                                 day: "numeric"
-                              })}
-                            </CardDescription>
-                          )}
+                              })
+                              const timeStr = date.toLocaleTimeString("en-US", {
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })
+                              return timeStr !== "00:00" ? `${dateStr} • ${timeStr}` : dateStr
+                            })()}
+                          </span>
+                        </CardDescription>
+                      )}
+                      {!plan.date && (
+                        <CardDescription className="text-sm text-gray-400 dark:text-gray-500 mt-1.5">
+                          No date set
+                        </CardDescription>
+                      )}
+                      {plan.completed && (
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                            Completed {plan.date && new Date(plan.date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric"
+                            })}
+                          </span>
                         </div>
-                      </div>
-                      <Badge variant="secondary" className={cn("shrink-0", getCategoryColor(plan.category))}>
-                        <Tag className="h-3 w-3 mr-1" />
-                        {categoryNames[plan.category]}
-                      </Badge>
+                      )}
                     </div>
-                  </CardHeader>
-                  {plan.description && (
-                    <CardContent className="px-4 py-2">
-                      <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line break-words">
-                        {plan.description}
-                      </p>
-                    </CardContent>
-                  )}
-                  <CardFooter className="flex justify-end gap-2 px-4 py-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(plan)}
-                      className="h-8 px-2"
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                      onClick={() => handleDelete(plan)}
-                    >
-                      Eliminar
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))
-            )}
-          </div>
-        </ScrollArea>
+                  </div>
+                </CardHeader>
+                {plan.description && (
+                  <CardContent className="px-4 pb-4 pt-0">
+                    <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-line break-words">
+                      {plan.description}
+                    </p>
+                  </CardContent>
+                )}
+              </Card>
+            ))
+          )}
+        </div>
       )}
     </div>
   )

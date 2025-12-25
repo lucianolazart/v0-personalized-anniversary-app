@@ -1,12 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Check, Clapperboard, Film, Plus, Search, Star, Tv, Clock, Edit2, Trash2, RefreshCw } from "lucide-react"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
+import React, { useState, useEffect } from "react"
+import { Check, Film, Plus, Search, Star, Tv, Clock, RefreshCw } from "lucide-react"
 import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "../lib/firebase"
-import { useLongPress } from "../hooks/useLongPress"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,9 +15,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardFooter } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -30,18 +26,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import type { MediaWithId, NewMediaFormState } from "../types/media"
 import { MediaCard } from "../components/MediaCard"
+import { cn } from "@/lib/utils"
 
 export default function MoviesPage() {
   const [mediaList, setMediaList] = useState<MediaWithId[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
   const [open, setOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [showSearch, setShowSearch] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingMedia, setEditingMedia] = useState<MediaWithId | null>(null)
@@ -109,7 +109,7 @@ export default function MoviesPage() {
 
         handleCloseDialog()
       } catch (error) {
-        console.error("Error al guardar media:", error)
+        console.error("Error saving media:", error)
       } finally {
         setSaving(false)
       }
@@ -156,337 +156,398 @@ export default function MoviesPage() {
       await deleteDoc(doc(db, "peliculas", media.id))
       setDeletingMedia(null)
     } catch (error) {
-      console.error("Error al eliminar media:", error)
+      console.error("Error deleting media:", error)
     }
   }
 
-  const filteredMedia = mediaList.filter((media) => 
-    media.title.toLowerCase().includes(searchTerm.toLowerCase())
-  )
 
-  const getStateIcon = (state: MediaWithId["state"]) => {
-    switch (state) {
-      case "watched":
-        return <Check className="h-4 w-4" />;
-      case "in-progress":
-        return <Clock className="h-4 w-4" />;
-      case "pending":
-        return <Star className="h-4 w-4" />;
-    }
-  };
+  const [typeFilter, setTypeFilter] = useState<"all" | "movies" | "series">("all")
+  const [stateFilter, setStateFilter] = useState<MediaWithId["state"] | "all">("all")
 
-  const getStateText = (state: MediaWithId["state"]) => {
-    switch (state) {
-      case "watched":
-        return "Vista";
-      case "in-progress":
-        return "En progreso";
-      case "pending":
-        return "Pendiente";
+  const getFilteredMedia = () => {
+    let filtered = mediaList
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter((media) => 
+        media.title.toLowerCase().includes(searchTerm.toLowerCase())
+      )
     }
-  };
+
+    // Filter by type
+    if (typeFilter === "movies") {
+      filtered = filtered.filter((media) => media.type === "pelicula")
+    } else if (typeFilter === "series") {
+      filtered = filtered.filter((media) => media.type === "serie")
+    }
+
+    // Filter by state
+    if (stateFilter !== "all") {
+      filtered = filtered.filter((media) => media.state === stateFilter)
+    }
+
+    return filtered
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8 pb-safe">
-      <header className="text-center mb-8">
-        <div className="inline-flex items-center justify-center p-2 bg-purple-100 dark:bg-purple-900/30 rounded-full mb-4">
-          <Clapperboard className="h-6 w-6 text-purple-500 dark:text-purple-400" />
+    <div className="flex flex-col h-full bg-background font-sans text-foreground relative min-h-screen">
+      {/* Header */}
+      <header className="flex-none px-6 pt-12 pb-4 bg-background z-20 sticky top-0">
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              Movies & Shows
+            </h1>
+            <button 
+              onClick={() => {
+                setShowSearch(!showSearch)
+                if (showSearch) {
+                  setSearchTerm("")
+                }
+              }}
+              className="p-2 rounded-full bg-secondary text-foreground shadow-sm border border-border hover:bg-accent transition-colors"
+            >
+              <Search className="h-6 w-6" />
+            </button>
+          </div>
+          {showSearch && (
+            <Input
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full h-9 border-border focus:border-[#EA580C] focus:ring-[#EA580C]"
+              autoFocus
+            />
+          )}
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Nuestras Películas y Series</h1>
-        <p className="text-gray-600 dark:text-gray-300 mt-2">Recuerdos de momentos compartidos frente a la pantalla</p>
+        <div className="space-y-3">
+          {/* Type Filters */}
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            <button
+              onClick={() => setTypeFilter("all")}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all",
+                typeFilter === "all"
+                  ? "bg-[#EA580C] text-white shadow-sm"
+                  : "bg-card text-muted-foreground border border-border"
+              )}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setTypeFilter("movies")}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all",
+                typeFilter === "movies"
+                  ? "bg-[#EA580C] text-white shadow-sm"
+                  : "bg-card text-muted-foreground border border-border"
+              )}
+            >
+              Movies
+            </button>
+            <button
+              onClick={() => setTypeFilter("series")}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all",
+                typeFilter === "series"
+                  ? "bg-[#EA580C] text-white shadow-sm"
+                  : "bg-card text-muted-foreground border border-border"
+              )}
+            >
+              TV Shows
+            </button>
+          </div>
+
+          {/* State Filters */}
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            <button
+              onClick={() => setStateFilter("all")}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
+                stateFilter === "all"
+                  ? "bg-[#EA580C] text-white shadow-sm"
+                  : "bg-card text-muted-foreground border border-border"
+              )}
+            >
+              All Status
+            </button>
+            <button
+              onClick={() => setStateFilter("watched")}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
+                stateFilter === "watched"
+                  ? "bg-[#EA580C] text-white shadow-sm"
+                  : "bg-card text-muted-foreground border border-border"
+              )}
+            >
+              <Check className="h-3.5 w-3.5" />
+              Watched
+            </button>
+            <button
+              onClick={() => setStateFilter("in-progress")}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
+                stateFilter === "in-progress"
+                  ? "bg-[#EA580C] text-white shadow-sm"
+                  : "bg-card text-muted-foreground border border-border"
+              )}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              Watching
+            </button>
+            <button
+              onClick={() => setStateFilter("pending")}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
+                stateFilter === "pending"
+                  ? "bg-[#EA580C] text-white shadow-sm"
+                  : "bg-card text-muted-foreground border border-border"
+              )}
+            >
+              <Star className="h-3.5 w-3.5" />
+              Watchlist
+            </button>
+            <button
+              onClick={() => setStateFilter("up-to-date")}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
+                stateFilter === "up-to-date"
+                  ? "bg-[#EA580C] text-white shadow-sm"
+                  : "bg-card text-muted-foreground border border-border"
+              )}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Up to Date
+            </button>
+          </div>
+        </div>
       </header>
 
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
-          <Input
-            placeholder="Buscar..."
-            className="pl-8"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto px-6 pb-24 pt-2">
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#FED7AA] border-t-[#EA580C]"></div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {getFilteredMedia().length === 0 ? (
+              <div className="text-center py-16">
+                <p className="text-muted-foreground text-sm font-medium">
+                  No items match the selected filters
+                </p>
+              </div>
+            ) : (
+              getFilteredMedia().map((media) => (
+                <MediaCard
+                  key={media.id}
+                  media={media}
+                  onEdit={handleEdit}
+                  onDelete={(media) => setDeletingMedia(media)}
+                />
+              ))
+            )}
+          </div>
+        )}
+      </main>
 
-        <Dialog open={open} onOpenChange={(isOpen) => isOpen ? handleOpenDialog() : handleCloseDialog()}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 w-full sm:w-auto">
-              <Plus className="h-4 w-4" />
-              Añadir película/serie
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
+      {/* Floating Add Button */}
+      <Dialog open={open} onOpenChange={(isOpen) => isOpen ? handleOpenDialog() : handleCloseDialog()}>
+        <DialogTrigger asChild>
+          <button className="fixed bottom-24 right-6 w-14 h-14 bg-[#EA580C] text-white rounded-full shadow-lg shadow-[#EA580C]/40 flex items-center justify-center z-50 active:scale-95 transition-transform">
+            <Plus className="h-7 w-7" />
+          </button>
+        </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
-              <DialogTitle>
-                {editingMedia ? "Editar película o serie" : "Añadir nueva película o serie"}
+              <DialogTitle className="text-xl font-semibold">
+                {editingMedia ? "Edit movie or show" : "Add new movie or show"}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-gray-500 dark:text-gray-400">
                 {editingMedia 
-                  ? "Modifica los detalles de la película o serie"
-                  : "Registra lo que habéis visto o estáis viendo juntos"}
+                  ? "Modify the details of the movie or show"
+                  : "Record what you've watched or are watching together"}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-5 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <div className="col-span-3">
-                  <Label htmlFor="title">Título</Label>
+                  <Label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Title
+                  </Label>
                   <Input
                     id="title"
                     value={newMedia.title}
                     onChange={(e) => setNewMedia({ ...newMedia, title: e.target.value })}
-                    placeholder="Título"
+                    placeholder="Enter movie or show title"
+                    className="h-11 mt-2 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
                     autoFocus={false}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="year">Año</Label>
+                  <Label htmlFor="year" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Year
+                  </Label>
                   <Input
                     id="year"
                     type="number"
                     value={newMedia.year}
                     onChange={(e) => setNewMedia({ ...newMedia, year: Number(e.target.value) })}
+                    className="h-11 mt-2 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
                     autoFocus={false}
                   />
                 </div>
               </div>
 
               <div>
-                <Label>Tipo</Label>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type</Label>
                 <div className="flex mt-2 space-x-2">
                   <Button
                     type="button"
                     variant={newMedia.type === "pelicula" ? "default" : "outline"}
-                    className="flex-1"
+                    className={cn(
+                      "flex-1 h-11",
+                      newMedia.type === "pelicula" 
+                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
+                        : "border-gray-200 dark:border-gray-800"
+                    )}
                     onClick={() => setNewMedia({ ...newMedia, type: "pelicula" })}
                   >
                     <Film className="h-4 w-4 mr-2" />
-                    Película
+                    Movie
                   </Button>
                   <Button
                     type="button"
                     variant={newMedia.type === "serie" ? "default" : "outline"}
-                    className="flex-1"
+                    className={cn(
+                      "flex-1 h-11",
+                      newMedia.type === "serie" 
+                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
+                        : "border-gray-200 dark:border-gray-800"
+                    )}
                     onClick={() => setNewMedia({ ...newMedia, type: "serie" })}
                   >
                     <Tv className="h-4 w-4 mr-2" />
-                    Serie
+                    TV Show
                   </Button>
                 </div>
               </div>
 
               <div>
-                <Label>Estado</Label>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</Label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <Button
                     type="button"
                     variant={newMedia.state === "watched" ? "default" : "outline"}
-                    className="w-full"
+                    className={cn(
+                      "w-full h-11",
+                      newMedia.state === "watched" 
+                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
+                        : "border-gray-200 dark:border-gray-800"
+                    )}
                     onClick={() => setNewMedia({ ...newMedia, state: "watched" })}
                   >
                     <Check className="h-4 w-4 mr-2" />
-                    Vista
+                    Watched
                   </Button>
                   <Button
                     type="button"
                     variant={newMedia.state === "in-progress" ? "default" : "outline"}
-                    className="w-full"
+                    className={cn(
+                      "w-full h-11",
+                      newMedia.state === "in-progress" 
+                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
+                        : "border-gray-200 dark:border-gray-800"
+                    )}
                     onClick={() => setNewMedia({ ...newMedia, state: "in-progress" })}
                   >
                     <Clock className="h-4 w-4 mr-2" />
-                    En progreso
+                    Watching
                   </Button>
                   <Button
                     type="button"
                     variant={newMedia.state === "pending" ? "default" : "outline"}
-                    className="w-full"
+                    className={cn(
+                      "w-full h-11",
+                      newMedia.state === "pending" 
+                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
+                        : "border-gray-200 dark:border-gray-800"
+                    )}
                     onClick={() => setNewMedia({ ...newMedia, state: "pending" })}
                   >
                     <Star className="h-4 w-4 mr-2" />
-                    Pendiente
+                    Watchlist
                   </Button>
                   <Button
                     type="button"
                     variant={newMedia.state === "up-to-date" ? "default" : "outline"}
-                    className="w-full"
+                    className={cn(
+                      "w-full h-11",
+                      newMedia.state === "up-to-date" 
+                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
+                        : "border-gray-200 dark:border-gray-800"
+                    )}
                     onClick={() => setNewMedia({ ...newMedia, state: "up-to-date" })}
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Al día
+                    Up to Date
                   </Button>
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="image">URL de la imagen</Label>
+                <Label htmlFor="image" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Cover Image URL
+                </Label>
                 <Input
                   id="image"
                   value={newMedia.image}
                   onChange={(e) => setNewMedia({ ...newMedia, image: e.target.value })}
-                  placeholder="https://ejemplo.com/imagen.jpg"
+                  placeholder="https://example.com/image.jpg"
+                  className="h-11 mt-2 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" onClick={handleAddMedia} disabled={saving}>
+              <Button 
+                type="submit" 
+                onClick={handleAddMedia} 
+                disabled={saving}
+                className="bg-[#EA580C] hover:bg-[#C2410C] text-white font-medium"
+              >
                 {saving ? (
-                  <>
+                    <>
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Guardando...
+                    Saving...
                   </>
                 ) : (
-                  editingMedia ? "Guardar cambios" : "Guardar"
+                  editingMedia ? "Save Changes" : "Save Media"
                 )}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
 
-      <AlertDialog open={!!deletingMedia} onOpenChange={(open) => !open && setDeletingMedia(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminará permanentemente {deletingMedia?.title} de tu lista.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-500 hover:bg-red-600"
-              onClick={() => deletingMedia && handleDelete(deletingMedia)}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-        </div>
-      ) : (
-        <div className="mb-safe">
-          <Tabs defaultValue="all" className="w-full">
-            <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="all" className="flex-1 sm:flex-none">
-                Todos
-              </TabsTrigger>
-              <TabsTrigger value="movies" className="flex-1 sm:flex-none">
-                Películas
-              </TabsTrigger>
-              <TabsTrigger value="series" className="flex-1 sm:flex-none">
-                Series
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="all">
-              <MediaGrid 
-                mediaList={filteredMedia} 
-                onEdit={handleEdit}
-                onDelete={(media) => setDeletingMedia(media)}
-              />
-            </TabsContent>
-            <TabsContent value="movies">
-              <MediaGrid 
-                mediaList={filteredMedia.filter((media) => media.type === "pelicula")} 
-                onEdit={handleEdit}
-                onDelete={(media) => setDeletingMedia(media)}
-              />
-            </TabsContent>
-            <TabsContent value="series">
-              <MediaGrid 
-                mediaList={filteredMedia.filter((media) => media.type === "serie")} 
-                onEdit={handleEdit}
-                onDelete={(media) => setDeletingMedia(media)}
-              />
-            </TabsContent>
-          </Tabs>
-        </div>
-      )}
+        <AlertDialog open={!!deletingMedia} onOpenChange={(open) => !open && setDeletingMedia(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-lg font-semibold">Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription className="text-muted-foreground">
+                This action cannot be undone. This will permanently delete {deletingMedia?.title} from your list.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-border">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-red-500 hover:bg-red-600 text-white"
+                onClick={() => deletingMedia && handleDelete(deletingMedia)}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </div>
   )
 }
 
-function MediaGrid({ 
-  mediaList, 
-  onEdit,
-  onDelete 
-}: { 
-  mediaList: MediaWithId[];
-  onEdit: (media: MediaWithId) => void;
-  onDelete: (media: MediaWithId) => void;
-}) {
-  const [stateFilter, setStateFilter] = useState<MediaWithId["state"] | "all">("all");
-
-  const filteredByState = mediaList.filter(media => 
-    stateFilter === "all" ? true : media.state === stateFilter
-  );
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant={stateFilter === "all" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStateFilter("all")}
-          className="flex items-center gap-2"
-        >
-          Todas
-        </Button>
-        <Button
-          variant={stateFilter === "watched" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStateFilter("watched")}
-          className="flex items-center gap-2"
-        >
-          <Check className="h-4 w-4" />
-          Vistas
-        </Button>
-        <Button
-          variant={stateFilter === "in-progress" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStateFilter("in-progress")}
-          className="flex items-center gap-2"
-        >
-          <Clock className="h-4 w-4" />
-          En progreso
-        </Button>
-        <Button
-          variant={stateFilter === "pending" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStateFilter("pending")}
-          className="flex items-center gap-2"
-        >
-          <Star className="h-4 w-4" />
-          Pendientes
-        </Button>
-        <Button
-          variant={stateFilter === "up-to-date" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStateFilter("up-to-date")}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Al día
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {filteredByState.map((media) => (
-          <MediaCard
-            key={media.id}
-            media={media}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        ))}
-      </div>
-
-      {filteredByState.length === 0 && (
-        <div className="text-center py-10 text-gray-500">
-          <p>No hay elementos que coincidan con los filtros seleccionados</p>
-        </div>
-      )}
-    </div>
-  );
-}
