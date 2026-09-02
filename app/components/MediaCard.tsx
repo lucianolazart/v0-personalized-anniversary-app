@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Check, Clock, Star, RefreshCw, MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { MediaWithId } from "../types/media"
 import { cn } from "@/lib/utils"
+import { useLongPress } from "../hooks/useLongPress"
 
 interface MediaCardProps {
   media: MediaWithId
@@ -50,6 +52,13 @@ function StateIcon({ state }: { state: MediaWithId["state"] }) {
 }
 
 export function MediaCard({ media, variant, onEdit, onDelete }: MediaCardProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const { isLongPressing, ...pressHandlers } = useLongPress({
+    onLongPress: () => setMenuOpen(true),
+    ms: 450,
+    moveThreshold: 12,
+  })
+
   const menu = (
     <DropdownMenuContent align="end" className="w-40">
       <DropdownMenuItem onClick={() => onEdit(media)}>Edit</DropdownMenuItem>
@@ -64,30 +73,45 @@ export function MediaCard({ media, variant, onEdit, onDelete }: MediaCardProps) 
 
   if (variant === "poster") {
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" className="group w-full text-left outline-none">
-            <div className="relative aspect-[2/3] overflow-hidden rounded-sm bg-muted">
-              <img
-                src={media.image || "/placeholder.svg?height=450&width=300"}
-                alt={media.title}
-                className="h-full w-full object-cover"
-                draggable={false}
-              />
-              <span
-                className={cn(
-                  "absolute top-1.5 right-1.5 h-2 w-2 rounded-full ring-2 ring-black/50",
-                  stateDotClass(media.state)
-                )}
-              />
-            </div>
-            <p className="mt-1.5 text-[11px] leading-tight font-medium text-foreground line-clamp-1">
-              {media.title}
-            </p>
-          </button>
-        </DropdownMenuTrigger>
-        {menu}
-      </DropdownMenu>
+      <div className="w-full">
+        <div
+          className={cn(
+            "relative aspect-[2/3] overflow-hidden rounded-sm bg-muted touch-pan-y select-none",
+            isLongPressing && "opacity-80"
+          )}
+          {...pressHandlers}
+        >
+          <img
+            src={media.image || "/placeholder.svg?height=450&width=300"}
+            alt={media.title}
+            className="pointer-events-none h-full w-full object-cover"
+            draggable={false}
+          />
+          <span
+            className={cn(
+              "absolute top-1.5 right-1.5 h-2 w-2 rounded-full ring-2 ring-black/50 pointer-events-none",
+              stateDotClass(media.state)
+            )}
+          />
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Options for ${media.title}`}
+                className="absolute bottom-1.5 right-1.5 h-7 w-7 inline-flex items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm"
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            {menu}
+          </DropdownMenu>
+        </div>
+        <p className="mt-1.5 text-[11px] leading-tight font-medium text-foreground line-clamp-1">
+          {media.title}
+        </p>
+      </div>
     )
   }
 
