@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { Clapperboard, Heart, ListTodo, Moon } from "lucide-react"
+import { Clapperboard, Heart, ListTodo, Moon, ShoppingBasket } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -29,6 +29,11 @@ export function BottomNavigation() {
       name: "Plans",
       href: "/plans",
       icon: ListTodo,
+    },
+    {
+      name: "Shop",
+      href: "/shop",
+      icon: ShoppingBasket,
     },
   ]
 

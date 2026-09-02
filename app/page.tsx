@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { collection, onSnapshot } from "firebase/firestore"
-import { Calendar, Clapperboard } from "lucide-react"
+import { Calendar, Clapperboard, ShoppingBasket } from "lucide-react"
 import { db } from "./lib/firebase"
 import type { MovieNight } from "./types/movie-night"
 import type { Plan } from "./types/plans"
+import type { GroceryItem } from "./types/groceries"
 import { nextScheduledNight } from "./lib/movie-night"
 import { categoryEmojis, categoryNames, nextActivePlan } from "./lib/plans"
+import { isGroceryAisle, toBuyItems } from "./lib/groceries"
 import {
   countdownParts,
   formatDisplayDate,
@@ -27,6 +29,7 @@ function toFirestoreDate(value: { toDate?: () => Date } | Date | null | undefine
 export default function Home() {
   const [nights, setNights] = useState<MovieNight[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
+  const [groceries, setGroceries] = useState<GroceryItem[]>([])
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
@@ -65,9 +68,30 @@ export default function Home() {
       )
     })
 
+    const groceriesUnsub = onSnapshot(collection(db, "despensa"), (snapshot) => {
+      setGroceries(
+        snapshot.docs.map((item) => {
+          const data = item.data()
+          return {
+            id: item.id,
+            name: data.name,
+            image: data.image ?? "",
+            brand: data.brand,
+            barcode: data.barcode,
+            aisle: isGroceryAisle(data.aisle) ? data.aisle : "other",
+            inPantry: Boolean(data.inPantry),
+            needBuy: Boolean(data.needBuy),
+            quantity: data.quantity,
+            notes: data.notes,
+          } as GroceryItem
+        })
+      )
+    })
+
     return () => {
       nightsUnsub()
       plansUnsub()
+      groceriesUnsub()
     }
   }, [])
 
@@ -76,6 +100,8 @@ export default function Home() {
   const todayIsAnniversary = isAnniversaryToday(now)
   const nextNight = useMemo(() => nextScheduledNight(nights), [nights])
   const nextPlan = useMemo(() => nextActivePlan(plans), [plans])
+  const shopping = useMemo(() => toBuyItems(groceries), [groceries])
+  const shoppingThumbs = shopping.filter((item) => item.image).slice(0, 3)
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -165,6 +191,44 @@ export default function Home() {
             </div>
           ) : (
             <EmptyRow icon={Calendar} text="Nothing scheduled" />
+          )}
+        </Link>
+
+        <Link
+          href="/shop"
+          className="block rounded-lg border border-border bg-card overflow-hidden transition-colors hover:bg-card/80"
+        >
+          <div className="px-4 pt-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-primary font-medium">
+              To buy
+            </p>
+          </div>
+          {shopping.length > 0 ? (
+            <div className="p-4 flex items-center gap-4">
+              {shoppingThumbs.length > 0 && (
+                <div className="flex -space-x-2 shrink-0">
+                  {shoppingThumbs.map((item) => (
+                    <div
+                      key={item.id}
+                      className="h-12 w-12 overflow-hidden rounded-md border border-border bg-muted"
+                    >
+                      <img src={item.image} alt="" className="h-full w-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="font-serif text-lg leading-tight">
+                  {shopping.length} {shopping.length === 1 ? "item" : "items"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1 truncate">
+                  {shopping.slice(0, 3).map((item) => item.name).join(", ")}
+                  {shopping.length > 3 ? "…" : ""}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <EmptyRow icon={ShoppingBasket} text="Nothing to buy" />
           )}
         </Link>
       </main>
