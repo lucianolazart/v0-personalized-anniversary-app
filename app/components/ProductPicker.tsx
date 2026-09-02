@@ -1,17 +1,26 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { FoodImage, FoodSearchResult } from "../types/groceries"
-import { parseFoodLang, FOOD_LANG_KEY, type FoodLang } from "../lib/food"
+import type { FoodCatalogItem, FoodImage, FoodSearchResult } from "../types/groceries"
+import {
+  FOOD_LANG_KEY,
+  FOOD_ORIGIN_KEY,
+  isBarcode,
+  parseFoodLang,
+  parseFoodOrigin,
+  type FoodLang,
+  type FoodOrigin,
+} from "../lib/food"
 import { cn } from "@/lib/utils"
 
 interface ProductPickerProps {
   query: string
   image: string
+  catalog?: FoodCatalogItem[]
   onImageChange: (image: string) => void
   onSelectResult: (result: {
     name: string
@@ -21,9 +30,17 @@ interface ProductPickerProps {
   }) => void
 }
 
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+}
+
 export function ProductPicker({
   query,
   image,
+  catalog = [],
   onImageChange,
   onSelectResult,
 }: ProductPickerProps) {
@@ -35,11 +52,12 @@ export function ProductPicker({
   const [photosLoading, setPhotosLoading] = useState(false)
   const [photosError, setPhotosError] = useState<string | null>(null)
   const [lang, setLang] = useState<FoodLang>("es")
+  const [origin, setOrigin] = useState<FoodOrigin>("ar")
   const pickedRef = useRef<FoodSearchResult | null>(null)
 
   useEffect(() => {
-    const saved = parseFoodLang(window.localStorage.getItem(FOOD_LANG_KEY))
-    setLang(saved)
+    setLang(parseFoodLang(window.localStorage.getItem(FOOD_LANG_KEY)))
+    setOrigin(parseFoodOrigin(window.localStorage.getItem(FOOD_ORIGIN_KEY)))
   }, [])
 
   const handleLangChange = (next: FoodLang) => {
@@ -47,16 +65,41 @@ export function ProductPicker({
     window.localStorage.setItem(FOOD_LANG_KEY, next)
   }
 
+  const handleOriginChange = (next: FoodOrigin) => {
+    setOrigin(next)
+    window.localStorage.setItem(FOOD_ORIGIN_KEY, next)
+  }
+
+  const savedMatches = useMemo(() => {
+    const q = normalize(query.trim())
+    if (q.length < 2) return []
+    const seen = new Set<string>()
+    return catalog
+      .filter((item) => {
+        const blob = normalize(`${item.name} ${item.brand ?? ""} ${item.barcode ?? ""}`)
+        return blob.includes(q)
+      })
+      .filter((item) => {
+        const key = item.barcode || item.name
+        if (seen.has(key)) return false
+        seen.add(key)
+        return Boolean(item.image)
+      })
+      .slice(0, 4)
+  }, [catalog, query])
+
   useEffect(() => {
     const q = query.trim()
-    if (pickedRef.current && q !== pickedRef.current.name) {
+    const pickedItem = pickedRef.current
+    if (pickedItem && q !== pickedItem.name && q !== pickedItem.barcode) {
       pickedRef.current = null
       setPicked(null)
       setPhotos([])
       setPhotosError(null)
     }
 
-    if (q.length < 2) {
+    const barcode = isBarcode(q)
+    if (q.length < (barcode ? 8 : 3)) {
       setResults([])
       setLoading(false)
       setError(null)
@@ -68,7 +111,7 @@ export function ProductPicker({
       setLoading(true)
       setError(null)
       try {
-        const params = new URLSearchParams({ q, lang })
+        const params = new URLSearchParams({ q, lang, origin })
         const res = await fetch(`/api/food/search?${params.toString()}`, {
           signal: controller.signal,
         })
@@ -92,7 +135,7 @@ export function ProductPicker({
       window.clearTimeout(timeout)
       controller.abort()
     }
-  }, [query, lang])
+  }, [query, lang, origin])
 
   const loadPhotos = async (result: FoodSearchResult) => {
     if (!result.barcode) {
@@ -142,34 +185,62 @@ export function ProductPicker({
   }
 
   const showingPhotos = Boolean(picked)
+  const remoteResults = results.filter((result) => {
+    const key = result.barcode || result.name
+    return !savedMatches.some((item) => (item.barcode || item.name) === key)
+  })
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <Label>Photo</Label>
-        <div className="inline-flex rounded-md border border-border bg-card p-0.5">
-          <button
-            type="button"
-            onClick={() => handleLangChange("en")}
-            className={cn(
-              "h-8 w-9 rounded-sm text-base leading-none",
-              lang === "en" ? "bg-primary/20" : "opacity-60 hover:opacity-100"
-            )}
-            aria-label="Search products in English"
-          >
-            🇬🇧
-          </button>
-          <button
-            type="button"
-            onClick={() => handleLangChange("es")}
-            className={cn(
-              "h-8 w-9 rounded-sm text-base leading-none",
-              lang === "es" ? "bg-primary/20" : "opacity-60 hover:opacity-100"
-            )}
-            aria-label="Buscar productos en español"
-          >
-            🇪🇸
-          </button>
+        <div className="flex items-center gap-1">
+          <div className="inline-flex rounded-md border border-border bg-card p-0.5">
+            <button
+              type="button"
+              onClick={() => handleOriginChange("ar")}
+              className={cn(
+                "h-8 px-2 rounded-sm text-[11px] font-medium",
+                origin === "ar" ? "bg-primary/20 text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              AR
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOriginChange("all")}
+              className={cn(
+                "h-8 px-2 rounded-sm text-[11px] font-medium",
+                origin === "all" ? "bg-primary/20 text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              World
+            </button>
+          </div>
+          <div className="inline-flex rounded-md border border-border bg-card p-0.5">
+            <button
+              type="button"
+              onClick={() => handleLangChange("en")}
+              className={cn(
+                "h-8 w-9 rounded-sm text-base leading-none",
+                lang === "en" ? "bg-primary/20" : "opacity-60 hover:opacity-100"
+              )}
+              aria-label="Search products in English"
+            >
+              🇬🇧
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLangChange("es")}
+              className={cn(
+                "h-8 w-9 rounded-sm text-base leading-none",
+                lang === "es" ? "bg-primary/20" : "opacity-60 hover:opacity-100"
+              )}
+              aria-label="Buscar productos en español"
+            >
+              🇪🇸
+            </button>
+          </div>
         </div>
       </div>
 
@@ -186,7 +257,7 @@ export function ProductPicker({
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Type a product name, pick a match, then choose a photo.
+          Brand + product works best — or paste a barcode.
         </p>
       )}
 
@@ -255,30 +326,38 @@ export function ProductPicker({
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 
-          {!loading && query.trim().length >= 2 && results.length === 0 && !error && (
+          {!loading && query.trim().length >= 3 && results.length === 0 && savedMatches.length === 0 && !error && (
             <p className="text-sm text-muted-foreground">
-              No products found. You can paste an image URL below.
+              No good matches. Try a brand name, a barcode, or paste a photo URL.
             </p>
           )}
 
-          {results.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1">
-              {results.map((result) => (
-                <button
+          {(savedMatches.length > 0 || remoteResults.length > 0) && (
+            <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+              {savedMatches.map((item) => (
+                <ProductMatch
+                  key={`saved-${item.barcode || item.name}`}
+                  name={item.name}
+                  brand={item.brand || "Already in Shop"}
+                  image={item.image}
+                  onSelect={() =>
+                    handleSelectProduct({
+                      name: item.name,
+                      brand: item.brand ?? "",
+                      barcode: item.barcode ?? "",
+                      image: item.image,
+                    })
+                  }
+                />
+              ))}
+              {remoteResults.map((result) => (
+                <ProductMatch
                   key={`${result.barcode}-${result.name}`}
-                  type="button"
-                  onClick={() => handleSelectProduct(result)}
-                  className="relative aspect-square rounded-md overflow-hidden border-2 border-transparent bg-muted hover:border-primary/50"
-                >
-                  <img
-                    src={result.image}
-                    alt={result.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <span className="absolute inset-x-0 bottom-0 bg-black/60 text-[10px] text-white px-1 py-0.5 truncate">
-                    {result.name}
-                  </span>
-                </button>
+                  name={result.name}
+                  brand={result.brand}
+                  image={result.image}
+                  onSelect={() => handleSelectProduct(result)}
+                />
               ))}
             </div>
           )}
@@ -299,8 +378,38 @@ export function ProductPicker({
       </div>
 
       <p className="text-[10px] text-muted-foreground">
-        Product data from Open Food Facts, a free and open food database.
+        Product data from Open Food Facts. Argentina first; switch to World if needed.
       </p>
     </div>
+  )
+}
+
+function ProductMatch({
+  name,
+  brand,
+  image,
+  onSelect,
+}: {
+  name: string
+  brand: string
+  image: string
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="w-full flex items-center gap-3 rounded-md border border-transparent hover:border-primary/40 hover:bg-muted/50 p-2 text-left"
+    >
+      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted border border-border">
+        <img src={image} alt="" className="h-full w-full object-cover" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-medium leading-tight line-clamp-2">{name}</p>
+        {brand ? (
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">{brand}</p>
+        ) : null}
+      </div>
+    </button>
   )
 }

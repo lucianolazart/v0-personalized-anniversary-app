@@ -43,6 +43,13 @@ export interface FoodSearchResult {
   image: string
 }
 
+export interface FoodCatalogItem {
+  name: string
+  brand?: string
+  barcode?: string
+  image: string
+}
+
 export interface FoodImage {
   url: string
 }

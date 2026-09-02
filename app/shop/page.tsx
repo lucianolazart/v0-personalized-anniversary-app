@@ -263,7 +263,7 @@ export default function ShopPage() {
               <DialogDescription>
                 {editingItem
                   ? "Update the product or move it between pantry and the list."
-                  : "Search a product photo, then choose pantry or to buy."}
+                  : "Search by brand + product, or paste a barcode."}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-5 py-4">
@@ -273,7 +273,7 @@ export default function ShopPage() {
                   id="grocery-name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Milk, tomatoes, dish soap..."
+                  placeholder="La Serenísima milk, or barcode"
                   className="h-11"
                 />
               </div>
@@ -281,6 +281,12 @@ export default function ShopPage() {
               <ProductPicker
                 query={form.name}
                 image={form.image}
+                catalog={items.map((item) => ({
+                  name: item.name,
+                  brand: item.brand,
+                  barcode: item.barcode,
+                  image: item.image,
+                }))}
                 onImageChange={(image) => setForm((current) => ({ ...current, image }))}
                 onSelectResult={(result) =>
                   setForm((current) => ({
