@@ -26,6 +26,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -57,6 +67,7 @@ export default function MovieNightPage() {
   const [form, setForm] = useState<NewMovieNightFormState>(initialForm)
   const [schedulingId, setSchedulingId] = useState<string | null>(null)
   const [scheduleDate, setScheduleDate] = useState("")
+  const [deletingNight, setDeletingNight] = useState<MovieNight | null>(null)
 
   useEffect(() => {
     const nightsUnsub = onSnapshot(collection(db, "movieNights"), (snapshot) => {
@@ -196,6 +207,7 @@ export default function MovieNightPage() {
   const handleDelete = async (night: MovieNight) => {
     try {
       await deleteDoc(doc(db, "movieNights", night.id))
+      setDeletingNight(null)
     } catch (error) {
       console.error("Error deleting movie night:", error)
     }
@@ -233,9 +245,32 @@ export default function MovieNightPage() {
                     />
                   </div>
                   <div className="p-4 space-y-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-primary font-medium">
-                      Next up
-                    </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-primary font-medium pt-1">
+                        Next up
+                      </p>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={() => openSchedule(highlight)}>
+                            Edit date
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleClearDate(highlight)}>
+                            Move to ideas
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setDeletingNight(highlight)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                     <h2 className="text-2xl font-serif font-medium leading-tight">
                       {highlight.title}
                     </h2>
@@ -266,7 +301,7 @@ export default function MovieNightPage() {
               items={ideas}
               onSchedule={openSchedule}
               onUnschedule={handleClearDate}
-              onDelete={handleDelete}
+              onDelete={setDeletingNight}
             />
 
             <NightList
@@ -275,7 +310,7 @@ export default function MovieNightPage() {
               items={upcoming}
               onSchedule={openSchedule}
               onUnschedule={handleClearDate}
-              onDelete={handleDelete}
+              onDelete={setDeletingNight}
             />
 
             <NightList
@@ -285,7 +320,7 @@ export default function MovieNightPage() {
               history
               onSchedule={openSchedule}
               onUnschedule={handleClearDate}
-              onDelete={handleDelete}
+              onDelete={setDeletingNight}
             />
           </>
         )}
@@ -387,6 +422,25 @@ export default function MovieNightPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={!!deletingNight} onOpenChange={(isOpen) => !isOpen && setDeletingNight(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif font-medium">Remove from Movie Night?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingNight?.title} will leave this page. It stays in Movies.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deletingNight && handleDelete(deletingNight)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
