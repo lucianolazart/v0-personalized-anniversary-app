@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { Clapperboard, ListTodo } from "lucide-react"
+import { Clapperboard, ListTodo, Moon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -14,6 +14,11 @@ export function BottomNavigation() {
       name: "Movies",
       href: "/movies",
       icon: Clapperboard,
+    },
+    {
+      name: "Night",
+      href: "/movie-night",
+      icon: Moon,
     },
     {
       name: "Plans",

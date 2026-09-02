@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { TmdbPoster, TmdbSearchResult } from "../types/tmdb"
+import { parseTmdbLang, TMDB_LANG_KEY, type TmdbLang } from "../lib/tmdb"
 import { cn } from "@/lib/utils"
 
 interface CoverPickerProps {
   query: string
   image: string
+  mediaFilter?: "movie"
   onImageChange: (image: string) => void
   onSelectResult: (result: {
     title: string
@@ -23,6 +25,7 @@ interface CoverPickerProps {
 export function CoverPicker({
   query,
   image,
+  mediaFilter,
   onImageChange,
   onSelectResult,
 }: CoverPickerProps) {
@@ -33,7 +36,18 @@ export function CoverPicker({
   const [posters, setPosters] = useState<TmdbPoster[]>([])
   const [postersLoading, setPostersLoading] = useState(false)
   const [postersError, setPostersError] = useState<string | null>(null)
+  const [lang, setLang] = useState<TmdbLang>("en-US")
   const pickedRef = useRef<TmdbSearchResult | null>(null)
+
+  useEffect(() => {
+    const saved = parseTmdbLang(window.localStorage.getItem(TMDB_LANG_KEY))
+    setLang(saved)
+  }, [])
+
+  const handleLangChange = (next: TmdbLang) => {
+    setLang(next)
+    window.localStorage.setItem(TMDB_LANG_KEY, next)
+  }
 
   useEffect(() => {
     const q = query.trim()
@@ -56,7 +70,11 @@ export function CoverPicker({
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`/api/tmdb/search?q=${encodeURIComponent(q)}`, {
+        const params = new URLSearchParams({ q, lang })
+        if (mediaFilter === "movie") {
+          params.set("type", "movie")
+        }
+        const res = await fetch(`/api/tmdb/search?${params.toString()}`, {
           signal: controller.signal,
         })
         const data = await res.json()
@@ -79,14 +97,14 @@ export function CoverPicker({
       window.clearTimeout(timeout)
       controller.abort()
     }
-  }, [query])
+  }, [query, lang, mediaFilter])
 
   const loadPosters = async (result: TmdbSearchResult) => {
     setPostersLoading(true)
     setPostersError(null)
     try {
       const res = await fetch(
-        `/api/tmdb/images?id=${result.id}&type=${result.mediaType}`
+        `/api/tmdb/images?id=${result.id}&type=${result.mediaType}&lang=${lang}`
       )
       const data = await res.json()
       if (!res.ok) {
@@ -130,9 +148,33 @@ export function CoverPicker({
 
   return (
     <div className="space-y-3">
-      <Label>
-        Cover
-      </Label>
+      <div className="flex items-center justify-between gap-2">
+        <Label>Cover</Label>
+        <div className="inline-flex rounded-md border border-border bg-card p-0.5">
+          <button
+            type="button"
+            onClick={() => handleLangChange("en-US")}
+            className={cn(
+              "h-8 w-9 rounded-sm text-base leading-none",
+              lang === "en-US" ? "bg-primary/20" : "opacity-60 hover:opacity-100"
+            )}
+            aria-label="Search titles in English"
+          >
+            🇬🇧
+          </button>
+          <button
+            type="button"
+            onClick={() => handleLangChange("es-ES")}
+            className={cn(
+              "h-8 w-9 rounded-sm text-base leading-none",
+              lang === "es-ES" ? "bg-primary/20" : "opacity-60 hover:opacity-100"
+            )}
+            aria-label="Buscar títulos en español"
+          >
+            🇪🇸
+          </button>
+        </div>
+      </div>
 
       {image ? (
         <div className="flex items-center gap-3">
