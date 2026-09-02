@@ -1,4 +1,4 @@
-const CACHE_NAME = "lazarski-v2"
+const CACHE_NAME = "lazarski-v3"
 const urlsToCache = [
   "/",
   "/manifest.json",
@@ -65,7 +65,14 @@ self.addEventListener("notificationclick", (event) => {
   const url = event.notification.data?.url || "/movie-night"
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const existing = clients.find((client) => client.url.includes("/movie-night"))
+      const targetPath = new URL(url, self.location.origin).pathname
+      const existing = clients.find((client) => {
+        try {
+          return new URL(client.url).pathname === targetPath
+        } catch {
+          return client.url.includes(targetPath)
+        }
+      })
       if (existing) {
         return existing.focus()
       }

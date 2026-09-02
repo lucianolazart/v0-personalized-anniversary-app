@@ -5,6 +5,10 @@ export interface Plan {
   date?: Date;
   completed: boolean;
   category: "gastronomia" | "aire_libre" | "entretenimiento" | "educativo" | "otros";
+  remindersSent?: {
+    eve?: string;
+    day?: string;
+  };
 }
 
 export interface NewPlanFormState {

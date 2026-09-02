@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 const swContent = `
-const CACHE_NAME = "lazarski-v2";
+const CACHE_NAME = "lazarski-v3";
 const urlsToCache = [
   "/",
   "/manifest.json",
@@ -66,7 +66,14 @@ self.addEventListener("notificationclick", (event) => {
   const url = (event.notification.data && event.notification.data.url) || "/movie-night";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const existing = clients.find((client) => client.url.indexOf("/movie-night") !== -1);
+      const targetPath = new URL(url, self.location.origin).pathname;
+      const existing = clients.find((client) => {
+        try {
+          return new URL(client.url).pathname === targetPath;
+        } catch (err) {
+          return client.url.indexOf(targetPath) !== -1;
+        }
+      });
       if (existing) return existing.focus();
       return self.clients.openWindow(url);
     })

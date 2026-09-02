@@ -1,6 +1,8 @@
 import { addDoc, collection, doc, updateDoc } from "firebase/firestore"
 import { db } from "./firebase"
+import { startOfToday } from "./dates"
 import type { MediaWithId } from "../types/media"
+import type { MovieNight } from "../types/movie-night"
 
 function titlesMatch(a: string, b: string) {
   return a.trim().toLowerCase() === b.trim().toLowerCase()
@@ -36,29 +38,15 @@ export async function findOrCreateMovie(params: {
   return created.id
 }
 
-export function parseLocalDate(value: string) {
-  const [year, month, day] = value.split("-").map(Number)
-  return new Date(year, month - 1, day)
-}
+export {
+  parseLocalDate,
+  toInputDate,
+  startOfToday,
+  formatDisplayDate as formatNightDate,
+} from "./dates"
 
-export function toInputDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
-
-export function startOfToday() {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return today
-}
-
-export function formatNightDate(date: Date) {
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
+export function nextScheduledNight(nights: MovieNight[], from = startOfToday()) {
+  return nights
+    .filter((night) => night.status === "scheduled" && night.date && night.date >= from)
+    .sort((a, b) => (a.date?.getTime() ?? 0) - (b.date?.getTime() ?? 0))[0] ?? null
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { Clapperboard, ListTodo, Moon } from "lucide-react"
+import { Clapperboard, Heart, ListTodo, Moon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -10,6 +10,11 @@ export function BottomNavigation() {
   const pathname = usePathname()
 
   const navItems = [
+    {
+      name: "Home",
+      href: "/",
+      icon: Heart,
+    },
     {
       name: "Movies",
       href: "/movies",

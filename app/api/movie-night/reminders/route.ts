@@ -9,6 +9,8 @@ import {
 } from "firebase/firestore"
 import { db } from "@/app/lib/firebase"
 import { VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT } from "@/app/lib/vapid"
+import { categoryEmojis } from "@/app/lib/plans"
+import type { Plan } from "@/app/types/plans"
 
 const ARGENTINA_TZ = "America/Argentina/Buenos_Aires"
 
@@ -23,7 +25,7 @@ function addDays(ymd: string, days: number) {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
 }
 
-function nightYmd(value: { toDate?: () => Date } | Date | null | undefined) {
+function firestoreYmd(value: { toDate?: () => Date } | Date | null | undefined) {
   if (!value) return null
   const date = typeof (value as { toDate?: () => Date }).toDate === "function"
     ? (value as { toDate: () => Date }).toDate()
@@ -38,6 +40,36 @@ function isAuthorized(request: NextRequest) {
   return request.headers.get("authorization") === `Bearer ${secret}`
 }
 
+type PushMessage = { title: string; body: string; url: string }
+type RemindersSent = { eve?: string; day?: string }
+
+function collectDueReminders(params: {
+  dateYmd: string | null
+  remindersSent: RemindersSent
+  today: string
+  tomorrow: string
+  eve: { title: string; body: string; url: string }
+  day: { title: string; body: string; url: string }
+}) {
+  const messages: PushMessage[] = []
+  const updates: RemindersSent = { ...params.remindersSent }
+  let changed = false
+
+  if (params.dateYmd === params.tomorrow && params.remindersSent.eve !== params.dateYmd) {
+    messages.push(params.eve)
+    updates.eve = params.dateYmd
+    changed = true
+  }
+
+  if (params.dateYmd === params.today && params.remindersSent.day !== params.dateYmd) {
+    messages.push(params.day)
+    updates.day = params.dateYmd
+    changed = true
+  }
+
+  return { messages, updates, changed }
+}
+
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -46,52 +78,73 @@ export async function GET(request: NextRequest) {
   const today = argentinaYmd()
   const tomorrow = addDays(today, 1)
 
-  const [nightsSnap, subsSnap] = await Promise.all([
+  const [nightsSnap, plansSnap, subsSnap] = await Promise.all([
     getDocs(collection(db, "movieNights")),
+    getDocs(collection(db, "planes")),
     getDocs(collection(db, "pushSubscriptions")),
   ])
 
-  const nights = nightsSnap.docs
-    .map((item) => {
-      const data = item.data()
-      return {
-        id: item.id,
-        title: data.title as string,
-        status: data.status as string,
-        dateYmd: nightYmd(data.date),
-        remindersSent: (data.remindersSent ?? {}) as { eve?: string; day?: string },
-      }
-    })
-    .filter((night) => night.status === "scheduled" && night.dateYmd)
+  const messages: PushMessage[] = []
 
-  const messages: { title: string; body: string }[] = []
+  for (const item of nightsSnap.docs) {
+    const data = item.data()
+    if (data.status !== "scheduled") continue
+    const dateYmd = firestoreYmd(data.date)
+    if (!dateYmd) continue
 
-  for (const night of nights) {
-    const updates: { remindersSent: { eve?: string; day?: string } } = {
-      remindersSent: { ...night.remindersSent },
-    }
-    let changed = false
-
-    if (night.dateYmd === tomorrow && night.remindersSent.eve !== night.dateYmd) {
-      messages.push({
+    const remindersSent = (data.remindersSent ?? {}) as RemindersSent
+    const result = collectDueReminders({
+      dateYmd,
+      remindersSent,
+      today,
+      tomorrow,
+      eve: {
         title: "🍿 Movie Night tomorrow",
-        body: `Tomorrow you watch ${night.title}`,
-      })
-      updates.remindersSent.eve = night.dateYmd
-      changed = true
-    }
-
-    if (night.dateYmd === today && night.remindersSent.day !== night.dateYmd) {
-      messages.push({
+        body: `Tomorrow you watch ${data.title}`,
+        url: "/movie-night",
+      },
+      day: {
         title: "🍿 Movie Night today",
-        body: `Tonight you watch ${night.title}`,
-      })
-      updates.remindersSent.day = night.dateYmd
-      changed = true
-    }
+        body: `Tonight you watch ${data.title}`,
+        url: "/movie-night",
+      },
+    })
 
-    if (changed) {
-      await updateDoc(doc(db, "movieNights", night.id), updates)
+    messages.push(...result.messages)
+    if (result.changed) {
+      await updateDoc(doc(db, "movieNights", item.id), { remindersSent: result.updates })
+    }
+  }
+
+  for (const item of plansSnap.docs) {
+    const data = item.data()
+    if (data.completed) continue
+    const dateYmd = firestoreYmd(data.date)
+    if (!dateYmd) continue
+
+    const category = data.category as Plan["category"]
+    const emoji = categoryEmojis[category] ?? "📅"
+    const remindersSent = (data.remindersSent ?? {}) as RemindersSent
+    const result = collectDueReminders({
+      dateYmd,
+      remindersSent,
+      today,
+      tomorrow,
+      eve: {
+        title: `${emoji} Tomorrow: ${data.title}`,
+        body: `Tomorrow: ${data.title}`,
+        url: "/plans",
+      },
+      day: {
+        title: `${emoji} Today: ${data.title}`,
+        body: `Today: ${data.title}`,
+        url: "/plans",
+      },
+    })
+
+    messages.push(...result.messages)
+    if (result.changed) {
+      await updateDoc(doc(db, "planes", item.id), { remindersSent: result.updates })
     }
   }
 
@@ -117,7 +170,7 @@ export async function GET(request: NextRequest) {
           JSON.stringify({
             title: message.title,
             body: message.body,
-            url: "/movie-night",
+            url: message.url,
           })
         )
         sent += 1

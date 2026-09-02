@@ -5,7 +5,17 @@ import { Bell, BellOff, BellRing } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { enableMovieNightPush, notificationSupport } from "../lib/push"
 
-export function MovieNightPushPrompt() {
+type PushRemindersPromptProps = {
+  heading?: string
+  grantedText?: string
+  defaultText?: string
+}
+
+export function MovieNightPushPrompt({
+  heading = "🍿 Movie Night reminders",
+  grantedText = "You will get a ping the day before and the day of a scheduled night.",
+  defaultText = "Allow notifications to get a 🍿 alert the day before and the same day.",
+}: PushRemindersPromptProps) {
   const [status, setStatus] = useState<"loading" | "unsupported" | "default" | "granted" | "denied" | "error">("loading")
   const [busy, setBusy] = useState(false)
 
@@ -46,15 +56,15 @@ export function MovieNightPushPrompt() {
         {status === "granted" ? <BellRing className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">🍿 Movie Night reminders</p>
+        <p className="text-sm font-medium">{heading}</p>
         {status === "granted" && (
           <p className="text-xs text-muted-foreground mt-0.5">
-            You will get a ping the day before and the day of a scheduled night.
+            {grantedText}
           </p>
         )}
         {status === "default" && (
           <p className="text-xs text-muted-foreground mt-0.5">
-            Allow notifications to get a 🍿 alert the day before and the same day.
+            {defaultText}
           </p>
         )}
         {status === "denied" && (
