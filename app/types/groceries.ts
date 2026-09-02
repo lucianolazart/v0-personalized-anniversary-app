@@ -12,9 +12,8 @@ export type GroceryAisle =
 export interface GroceryItem {
   id: string
   name: string
-  image: string
-  brand?: string
-  barcode?: string
+  image?: string
+  emoji?: string
   aisle: GroceryAisle
   inPantry: boolean
   needBuy: boolean
@@ -26,30 +25,10 @@ export type GroceryDestination = "buy" | "pantry"
 
 export interface NewGroceryFormState {
   name: string
-  image: string
-  brand: string
-  barcode: string
+  emoji: string
   aisle: GroceryAisle
   quantity: string
   notes: string
   destination: GroceryDestination
   alsoInPantry: boolean
-}
-
-export interface FoodSearchResult {
-  barcode: string
-  name: string
-  brand: string
-  image: string
-}
-
-export interface FoodCatalogItem {
-  name: string
-  brand?: string
-  barcode?: string
-  image: string
-}
-
-export interface FoodImage {
-  url: string
 }
