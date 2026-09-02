@@ -1,12 +1,16 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
+import { Fraunces, Inter } from "next/font/google"
 import "./globals.css"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { ThemeProvider } from "@/components/theme-provider"
 import { FirebaseProvider } from "./context/firebase-context"
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-serif",
+})
 
 export const metadata: Metadata = {
   title: "Lazarski",
@@ -38,8 +42,8 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' }
+    { media: '(prefers-color-scheme: light)', color: '#F8F5F0' },
+    { media: '(prefers-color-scheme: dark)', color: '#0F0D0C' }
   ]
 }
 
@@ -55,11 +59,11 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
-      <body className={inter.className}>
+      <body className={`${inter.variable} ${fraunces.variable} font-sans`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <FirebaseProvider>
             <div className="flex flex-col min-h-screen">
-              <main className="flex-1 pb-16">{children}</main>
+              <main className="flex-1 pb-20">{children}</main>
               <BottomNavigation />
             </div>
           </FirebaseProvider>

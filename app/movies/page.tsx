@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Check, Film, Plus, Search, Star, Tv, Clock, RefreshCw } from "lucide-react"
+import { Check, Film, LayoutGrid, List, Plus, Search, Star, Tv, Clock, RefreshCw } from "lucide-react"
 import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "../lib/firebase"
 import {
@@ -27,16 +27,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import type { MediaWithId, NewMediaFormState } from "../types/media"
 import { MediaCard } from "../components/MediaCard"
 import { CoverPicker } from "../components/CoverPicker"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
+
+const VIEW_KEY = "movies-view"
+type ViewMode = "posters" | "compact"
 
 export default function MoviesPage() {
   const [mediaList, setMediaList] = useState<MediaWithId[]>([])
@@ -164,6 +162,19 @@ export default function MoviesPage() {
 
   const [typeFilter, setTypeFilter] = useState<"all" | "movies" | "series">("all")
   const [stateFilter, setStateFilter] = useState<MediaWithId["state"] | "all">("all")
+  const [viewMode, setViewMode] = useState<ViewMode>("posters")
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(VIEW_KEY)
+    if (saved === "posters" || saved === "compact") {
+      setViewMode(saved)
+    }
+  }, [])
+
+  const handleViewMode = (mode: ViewMode) => {
+    setViewMode(mode)
+    window.localStorage.setItem(VIEW_KEY, mode)
+  }
 
   const getFilteredMedia = () => {
     let filtered = mediaList
@@ -190,164 +201,146 @@ export default function MoviesPage() {
     return filtered
   }
 
+  const chipClass = (active: boolean) =>
+    cn(
+      "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5",
+      active
+        ? "bg-primary text-primary-foreground"
+        : "bg-card text-muted-foreground border border-border"
+    )
+
+  const filteredMedia = getFilteredMedia()
+
   return (
-    <div className="flex flex-col h-full bg-background font-sans text-foreground relative min-h-screen">
-      {/* Header */}
-      <header className="flex-none px-6 pt-12 pb-4 bg-background z-20 sticky top-0">
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+    <div className="flex flex-col h-full bg-background text-foreground relative min-h-screen">
+      <header className="flex-none px-4 pt-12 pb-3 bg-background/90 backdrop-blur-md z-20 sticky top-0">
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-3">
+            <h1 className="flex-1 text-3xl font-serif font-medium tracking-tight text-foreground">
               Movies & Shows
             </h1>
-            <button 
+            <div className="inline-flex rounded-md border border-border bg-card p-0.5">
+              <button
+                type="button"
+                onClick={() => handleViewMode("posters")}
+                className={cn(
+                  "h-8 w-8 inline-flex items-center justify-center rounded-sm transition-colors",
+                  viewMode === "posters"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-label="Poster grid"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleViewMode("compact")}
+                className={cn(
+                  "h-8 w-8 inline-flex items-center justify-center rounded-sm transition-colors",
+                  viewMode === "compact"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-label="Compact list"
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+            <button
               onClick={() => {
                 setShowSearch(!showSearch)
                 if (showSearch) {
                   setSearchTerm("")
                 }
               }}
-              className="p-2 rounded-full bg-secondary text-foreground shadow-sm border border-border hover:bg-accent transition-colors"
+              className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-accent transition-colors"
+              aria-label="Search"
             >
-              <Search className="h-6 w-6" />
+              <Search className="h-4 w-4" />
             </button>
+            <ThemeToggle />
           </div>
           {showSearch && (
             <Input
               placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-9 border-border focus:border-[#EA580C] focus:ring-[#EA580C]"
+              className="w-full h-9"
               autoFocus
             />
           )}
         </div>
-        <div className="space-y-3">
-          {/* Type Filters */}
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            <button
-              onClick={() => setTypeFilter("all")}
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all",
-                typeFilter === "all"
-                  ? "bg-[#EA580C] text-white shadow-sm"
-                  : "bg-card text-muted-foreground border border-border"
-              )}
-            >
+        <div className="space-y-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <button onClick={() => setTypeFilter("all")} className={chipClass(typeFilter === "all")}>
               All
             </button>
-            <button
-              onClick={() => setTypeFilter("movies")}
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all",
-                typeFilter === "movies"
-                  ? "bg-[#EA580C] text-white shadow-sm"
-                  : "bg-card text-muted-foreground border border-border"
-              )}
-            >
+            <button onClick={() => setTypeFilter("movies")} className={chipClass(typeFilter === "movies")}>
               Movies
             </button>
-            <button
-              onClick={() => setTypeFilter("series")}
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all",
-                typeFilter === "series"
-                  ? "bg-[#EA580C] text-white shadow-sm"
-                  : "bg-card text-muted-foreground border border-border"
-              )}
-            >
+            <button onClick={() => setTypeFilter("series")} className={chipClass(typeFilter === "series")}>
               TV Shows
             </button>
           </div>
-
-          {/* State Filters */}
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            <button
-              onClick={() => setStateFilter("all")}
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
-                stateFilter === "all"
-                  ? "bg-[#EA580C] text-white shadow-sm"
-                  : "bg-card text-muted-foreground border border-border"
-              )}
-            >
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <button onClick={() => setStateFilter("all")} className={chipClass(stateFilter === "all")}>
               All Status
             </button>
-            <button
-              onClick={() => setStateFilter("watched")}
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
-                stateFilter === "watched"
-                  ? "bg-[#EA580C] text-white shadow-sm"
-                  : "bg-card text-muted-foreground border border-border"
-              )}
-            >
-              <Check className="h-3.5 w-3.5" />
+            <button onClick={() => setStateFilter("watched")} className={chipClass(stateFilter === "watched")}>
+              <Check className="h-3 w-3" />
               Watched
             </button>
-            <button
-              onClick={() => setStateFilter("in-progress")}
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
-                stateFilter === "in-progress"
-                  ? "bg-[#EA580C] text-white shadow-sm"
-                  : "bg-card text-muted-foreground border border-border"
-              )}
-            >
-              <Clock className="h-3.5 w-3.5" />
+            <button onClick={() => setStateFilter("in-progress")} className={chipClass(stateFilter === "in-progress")}>
+              <Clock className="h-3 w-3" />
               Watching
             </button>
-            <button
-              onClick={() => setStateFilter("pending")}
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
-                stateFilter === "pending"
-                  ? "bg-[#EA580C] text-white shadow-sm"
-                  : "bg-card text-muted-foreground border border-border"
-              )}
-            >
-              <Star className="h-3.5 w-3.5" />
+            <button onClick={() => setStateFilter("pending")} className={chipClass(stateFilter === "pending")}>
+              <Star className="h-3 w-3" />
               Watchlist
             </button>
-            <button
-              onClick={() => setStateFilter("up-to-date")}
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5",
-                stateFilter === "up-to-date"
-                  ? "bg-[#EA580C] text-white shadow-sm"
-                  : "bg-card text-muted-foreground border border-border"
-              )}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
+            <button onClick={() => setStateFilter("up-to-date")} className={chipClass(stateFilter === "up-to-date")}>
+              <RefreshCw className="h-3 w-3" />
               Up to Date
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto px-6 pb-24 pt-2">
+      <main className={cn("flex-1 overflow-y-auto pb-24 pt-2", viewMode === "posters" ? "px-3" : "px-4")}>
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#FED7AA] border-t-[#EA580C]"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-muted border-t-primary" />
+          </div>
+        ) : filteredMedia.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-muted-foreground text-sm">
+              No items match the selected filters
+            </p>
+          </div>
+        ) : viewMode === "posters" ? (
+          <div className="grid grid-cols-3 gap-x-2 gap-y-4">
+            {filteredMedia.map((media) => (
+              <MediaCard
+                key={media.id}
+                media={media}
+                variant="poster"
+                onEdit={handleEdit}
+                onDelete={(item) => setDeletingMedia(item)}
+              />
+            ))}
           </div>
         ) : (
-          <div className="space-y-4">
-            {getFilteredMedia().length === 0 ? (
-              <div className="text-center py-16">
-                <p className="text-muted-foreground text-sm font-medium">
-                  No items match the selected filters
-                </p>
-              </div>
-            ) : (
-              getFilteredMedia().map((media) => (
-                <MediaCard
-                  key={media.id}
-                  media={media}
-                  onEdit={handleEdit}
-                  onDelete={(media) => setDeletingMedia(media)}
-                />
-              ))
-            )}
+          <div>
+            {filteredMedia.map((media) => (
+              <MediaCard
+                key={media.id}
+                media={media}
+                variant="compact"
+                onEdit={handleEdit}
+                onDelete={(item) => setDeletingMedia(item)}
+              />
+            ))}
           </div>
         )}
       </main>
@@ -355,16 +348,16 @@ export default function MoviesPage() {
       {/* Floating Add Button */}
       <Dialog open={open} onOpenChange={(isOpen) => isOpen ? handleOpenDialog() : handleCloseDialog()}>
         <DialogTrigger asChild>
-          <button className="fixed bottom-24 right-6 w-14 h-14 bg-[#EA580C] text-white rounded-full shadow-lg shadow-[#EA580C]/40 flex items-center justify-center z-50 active:scale-95 transition-transform">
+          <button className="fixed bottom-24 right-6 w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/30 flex items-center justify-center z-50 active:scale-95 transition-transform">
             <Plus className="h-7 w-7" />
           </button>
         </DialogTrigger>
           <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
-              <DialogTitle className="text-xl font-semibold">
+              <DialogTitle className="text-xl font-serif font-medium">
                 {editingMedia ? "Edit movie or show" : "Add new movie or show"}
               </DialogTitle>
-              <DialogDescription className="text-gray-500 dark:text-gray-400">
+              <DialogDescription>
                 {editingMedia 
                   ? "Modify the details of the movie or show"
                   : "Record what you've watched or are watching together"}
@@ -373,7 +366,7 @@ export default function MoviesPage() {
             <div className="grid gap-5 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <div className="col-span-3">
-                  <Label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <Label htmlFor="title">
                     Title
                   </Label>
                   <Input
@@ -381,12 +374,12 @@ export default function MoviesPage() {
                     value={newMedia.title}
                     onChange={(e) => setNewMedia({ ...newMedia, title: e.target.value })}
                     placeholder="Enter movie or show title"
-                    className="h-11 mt-2 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
+                    className="h-11 mt-2"
                     autoFocus={false}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="year" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <Label htmlFor="year">
                     Year
                   </Label>
                   <Input
@@ -394,7 +387,7 @@ export default function MoviesPage() {
                     type="number"
                     value={newMedia.year}
                     onChange={(e) => setNewMedia({ ...newMedia, year: Number(e.target.value) })}
-                    className="h-11 mt-2 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
+                    className="h-11 mt-2"
                     autoFocus={false}
                   />
                 </div>
@@ -417,17 +410,12 @@ export default function MoviesPage() {
               />
 
               <div>
-                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type</Label>
+                <Label>Type</Label>
                 <div className="flex mt-2 space-x-2">
                   <Button
                     type="button"
                     variant={newMedia.type === "pelicula" ? "default" : "outline"}
-                    className={cn(
-                      "flex-1 h-11",
-                      newMedia.type === "pelicula" 
-                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
-                        : "border-gray-200 dark:border-gray-800"
-                    )}
+                    className="flex-1 h-11"
                     onClick={() => setNewMedia({ ...newMedia, type: "pelicula" })}
                   >
                     <Film className="h-4 w-4 mr-2" />
@@ -436,12 +424,7 @@ export default function MoviesPage() {
                   <Button
                     type="button"
                     variant={newMedia.type === "serie" ? "default" : "outline"}
-                    className={cn(
-                      "flex-1 h-11",
-                      newMedia.type === "serie" 
-                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
-                        : "border-gray-200 dark:border-gray-800"
-                    )}
+                    className="flex-1 h-11"
                     onClick={() => setNewMedia({ ...newMedia, type: "serie" })}
                   >
                     <Tv className="h-4 w-4 mr-2" />
@@ -451,17 +434,12 @@ export default function MoviesPage() {
               </div>
 
               <div>
-                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</Label>
+                <Label>Status</Label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <Button
                     type="button"
                     variant={newMedia.state === "watched" ? "default" : "outline"}
-                    className={cn(
-                      "w-full h-11",
-                      newMedia.state === "watched" 
-                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
-                        : "border-gray-200 dark:border-gray-800"
-                    )}
+                    className="w-full h-11"
                     onClick={() => setNewMedia({ ...newMedia, state: "watched" })}
                   >
                     <Check className="h-4 w-4 mr-2" />
@@ -470,12 +448,7 @@ export default function MoviesPage() {
                   <Button
                     type="button"
                     variant={newMedia.state === "in-progress" ? "default" : "outline"}
-                    className={cn(
-                      "w-full h-11",
-                      newMedia.state === "in-progress" 
-                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
-                        : "border-gray-200 dark:border-gray-800"
-                    )}
+                    className="w-full h-11"
                     onClick={() => setNewMedia({ ...newMedia, state: "in-progress" })}
                   >
                     <Clock className="h-4 w-4 mr-2" />
@@ -484,12 +457,7 @@ export default function MoviesPage() {
                   <Button
                     type="button"
                     variant={newMedia.state === "pending" ? "default" : "outline"}
-                    className={cn(
-                      "w-full h-11",
-                      newMedia.state === "pending" 
-                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
-                        : "border-gray-200 dark:border-gray-800"
-                    )}
+                    className="w-full h-11"
                     onClick={() => setNewMedia({ ...newMedia, state: "pending" })}
                   >
                     <Star className="h-4 w-4 mr-2" />
@@ -498,12 +466,7 @@ export default function MoviesPage() {
                   <Button
                     type="button"
                     variant={newMedia.state === "up-to-date" ? "default" : "outline"}
-                    className={cn(
-                      "w-full h-11",
-                      newMedia.state === "up-to-date" 
-                        ? "bg-[#EA580C] hover:bg-[#C2410C] text-white" 
-                        : "border-gray-200 dark:border-gray-800"
-                    )}
+                    className="w-full h-11"
                     onClick={() => setNewMedia({ ...newMedia, state: "up-to-date" })}
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
@@ -518,7 +481,7 @@ export default function MoviesPage() {
                 type="submit" 
                 onClick={handleAddMedia} 
                 disabled={saving}
-                className="bg-[#EA580C] hover:bg-[#C2410C] text-white font-medium"
+                className="font-medium"
               >
                 {saving ? (
                     <>
@@ -536,7 +499,7 @@ export default function MoviesPage() {
         <AlertDialog open={!!deletingMedia} onOpenChange={(open) => !open && setDeletingMedia(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle className="text-lg font-semibold">Are you sure?</AlertDialogTitle>
+              <AlertDialogTitle className="text-lg font-serif font-medium">Are you sure?</AlertDialogTitle>
               <AlertDialogDescription className="text-muted-foreground">
                 This action cannot be undone. This will permanently delete {deletingMedia?.title} from your list.
               </AlertDialogDescription>

@@ -130,7 +130,7 @@ export function CoverPicker({
 
   return (
     <div className="space-y-3">
-      <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+      <Label>
         Cover
       </Label>
 
@@ -154,7 +154,7 @@ export function CoverPicker({
       {showingPosters ? (
         <>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+            <p className="text-sm font-medium truncate">
               Posters for {picked?.title}
             </p>
             <Button
@@ -190,8 +190,8 @@ export function CoverPicker({
                     className={cn(
                       "relative aspect-[2/3] rounded-lg overflow-hidden border-2 bg-muted",
                       selected
-                        ? "border-[#EA580C]"
-                        : "border-transparent hover:border-[#EA580C]/50"
+                        ? "border-primary"
+                        : "border-transparent hover:border-primary/50"
                     )}
                   >
                     <img
@@ -229,7 +229,7 @@ export function CoverPicker({
                   key={`${result.mediaType}-${result.id}`}
                   type="button"
                   onClick={() => handleSelectTitle(result)}
-                  className="relative aspect-[2/3] rounded-lg overflow-hidden border-2 border-transparent bg-muted hover:border-[#EA580C]/50"
+                  className="relative aspect-[2/3] rounded-md overflow-hidden border-2 border-transparent bg-muted hover:border-primary/50"
                 >
                   <img
                     src={result.posterUrl}
@@ -248,10 +248,7 @@ export function CoverPicker({
       )}
 
       <div>
-        <Label
-          htmlFor="image"
-          className="text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
+        <Label htmlFor="image">
           Or paste image URL
         </Label>
         <Input
@@ -259,7 +256,7 @@ export function CoverPicker({
           value={image}
           onChange={(e) => onImageChange(e.target.value)}
           placeholder="https://example.com/image.jpg"
-          className="h-11 mt-2 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
+          className="h-11 mt-2"
         />
       </div>
 

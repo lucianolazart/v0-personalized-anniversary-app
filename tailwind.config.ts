@@ -31,6 +31,10 @@ const config = {
   		margin: {
   			'safe': 'env(safe-area-inset-bottom)',
   		},
+  		fontFamily: {
+  			sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+  			serif: ["var(--font-serif)", "ui-serif", "Georgia", "serif"],
+  		},
   		colors: {
   			border: "hsl(var(--border))",
   			input: "hsl(var(--input))",
@@ -64,13 +68,6 @@ const config = {
   			card: {
   				DEFAULT: "hsl(var(--card))",
   				foreground: "hsl(var(--card-foreground))",
-  			},
-  			orange: {
-  				500: "#EA580C",
-  				600: "#C2410C",
-  				400: "#FB923C",
-  				200: "#FED7AA",
-  				100: "#FFEDD5",
   			},
   		},
   		borderRadius: {

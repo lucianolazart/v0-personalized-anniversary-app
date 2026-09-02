@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const categoryEmojis: Record<Plan["category"], string> = {
   gastronomia: "🍽️",
@@ -173,28 +174,26 @@ export default function PlansPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
-        {/* Header */}
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1 tracking-tight">
+        <header className="mb-6 flex items-start justify-between gap-3">
+          <h1 className="text-3xl font-serif font-medium text-foreground tracking-tight">
             Plans
           </h1>
+          <ThemeToggle />
         </header>
 
-        {/* Filter Buttons */}
-        <div className="mb-6 space-y-3">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+        <div className="mb-6 space-y-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4">
             {filterOptions.map((option) => (
               <button
                 key={option.value}
                 onClick={() => setCategoryFilter(option.value)}
                 className={cn(
-                  "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",
-                  "border",
+                  "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors border",
                   categoryFilter === option.value
-                    ? "bg-[#EA580C] text-white border-[#EA580C] shadow-sm"
-                    : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card text-muted-foreground border-border hover:text-foreground"
                 )}
               >
                 {option.emoji && <span className="mr-1.5">{option.emoji}</span>}
@@ -203,15 +202,14 @@ export default function PlansPage() {
             ))}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4">
             <button
               onClick={() => setShowCompleted(false)}
               className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",
-                "border",
+                "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors border",
                 !showCompleted
-                  ? "bg-[#EA580C] text-white border-[#EA580C] shadow-sm"
-                  : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:text-foreground"
               )}
             >
               Active
@@ -219,11 +217,10 @@ export default function PlansPage() {
             <button
               onClick={() => setShowCompleted(true)}
               className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",
-                "border",
+                "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors border",
                 showCompleted
-                  ? "bg-[#EA580C] text-white border-[#EA580C] shadow-sm"
-                  : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:text-foreground"
               )}
             >
               Completed
@@ -234,7 +231,7 @@ export default function PlansPage() {
         <Dialog open={open} onOpenChange={(isOpen) => isOpen ? handleOpenDialog() : handleCloseDialog()}>
           <DialogTrigger asChild>
             <Button 
-              className="w-full mb-6 bg-[#EA580C] hover:bg-[#C2410C] text-white shadow-sm font-medium"
+              className="w-full mb-6"
               size="lg"
             >
               <Plus className="h-5 w-5 mr-2" />
@@ -243,16 +240,16 @@ export default function PlansPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle className="text-xl font-semibold">
+              <DialogTitle className="text-xl font-serif font-medium">
                 {editingPlan ? "Edit Plan" : "Add New Plan"}
               </DialogTitle>
-              <DialogDescription className="text-gray-500 dark:text-gray-400">
+              <DialogDescription>
                 {editingPlan ? "Modify the plan details" : "Add a new plan to do together"}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-5 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Label htmlFor="title">
                   Title
                 </Label>
                 <Input
@@ -260,12 +257,12 @@ export default function PlansPage() {
                   value={newPlan.title}
                   onChange={(e) => setNewPlan({ ...newPlan, title: e.target.value })}
                   placeholder="Enter plan title"
-                  className="h-11 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
+                  className="h-11"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="description" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Label htmlFor="description">
                   Description (optional)
                 </Label>
                 <Textarea
@@ -273,29 +270,29 @@ export default function PlansPage() {
                   value={newPlan.description}
                   onChange={(e) => setNewPlan({ ...newPlan, description: e.target.value })}
                   placeholder="Add more details..."
-                  className="min-h-[100px] border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
+                  className="min-h-[100px]"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="date" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Label htmlFor="date">
                   Date (optional)
                 </Label>
                 <Input
                   id="date"
                   type="date"
-                  className="h-11 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
+                  className="h-11"
                   value={newPlan.date}
                   onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })}
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="category" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Label htmlFor="category">
                   Category
                 </Label>
                 <Select value={newPlan.category} onValueChange={(value: Plan["category"]) => setNewPlan({ ...newPlan, category: value })}>
-                  <SelectTrigger className="h-11 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]">
+                  <SelectTrigger className="h-11">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -309,10 +306,7 @@ export default function PlansPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button 
-                onClick={handleAddPlan}
-                className="bg-[#EA580C] hover:bg-[#C2410C] text-white font-medium"
-              >
+              <Button onClick={handleAddPlan}>
                 {editingPlan ? "Save Changes" : "Save Plan"}
               </Button>
             </DialogFooter>
@@ -322,13 +316,13 @@ export default function PlansPage() {
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#FED7AA] border-t-[#EA580C]"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-muted border-t-primary" />
         </div>
       ) : (
-        <div className="space-y-3 pb-24">
+        <div className="space-y-2 px-4 pb-24 max-w-4xl mx-auto">
           {filteredPlans.length === 0 ? (
             <div className="text-center py-16">
-              <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+              <p className="text-muted-foreground text-sm">
                 No plans match the selected filters
               </p>
             </div>
@@ -337,8 +331,7 @@ export default function PlansPage() {
               <Card
                 key={plan.id}
                 className={cn(
-                  "border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all",
-                  "bg-white dark:bg-gray-900",
+                  "border border-border shadow-none bg-card",
                   plan.completed && "opacity-60"
                 )}
               >
@@ -348,17 +341,17 @@ export default function PlansPage() {
                       checked={plan.completed}
                       onCheckedChange={() => handleToggleComplete(plan)}
                       className={cn(
-                        "mt-0.5 h-5 w-5 rounded-md border-2",
-                        plan.completed 
-                          ? "bg-[#EA580C] border-[#EA580C] text-white" 
-                          : "border-gray-300 dark:border-gray-700"
+                        "mt-0.5 h-5 w-5 rounded-sm border-2",
+                        plan.completed
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : "border-border"
                       )}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <CardTitle className={cn(
-                          "text-base font-semibold text-gray-900 dark:text-white leading-tight flex items-center gap-2",
-                          plan.completed && "line-through text-gray-400 dark:text-gray-500"
+                          "text-base font-serif font-medium text-foreground leading-tight flex items-center gap-2",
+                          plan.completed && "line-through text-muted-foreground"
                         )}>
                           <span>{categoryEmojis[plan.category]}</span>
                           <span>{plan.title}</span>
@@ -368,7 +361,7 @@ export default function PlansPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                             >
                               <MoreVertical className="h-4 w-4" />
                             </Button>
@@ -379,7 +372,7 @@ export default function PlansPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               onClick={() => handleDelete(plan)}
-                              className="text-red-600 focus:text-red-600 dark:text-red-400"
+                              className="text-destructive focus:text-destructive"
                             >
                               Delete
                             </DropdownMenuItem>
@@ -387,7 +380,7 @@ export default function PlansPage() {
                         </DropdownMenu>
                       </div>
                       {plan.date && (
-                        <CardDescription className="flex items-center gap-1.5 mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+                        <CardDescription className="flex items-center gap-1.5 mt-1.5 text-sm">
                           <Calendar className="h-3.5 w-3.5" />
                           <span>
                             {(() => {
@@ -408,14 +401,14 @@ export default function PlansPage() {
                         </CardDescription>
                       )}
                       {!plan.date && (
-                        <CardDescription className="text-sm text-gray-400 dark:text-gray-500 mt-1.5">
+                        <CardDescription className="text-sm mt-1.5">
                           No date set
                         </CardDescription>
                       )}
                       {plan.completed && (
                         <div className="flex items-center gap-1.5 mt-2">
-                          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
                             Completed {plan.date && new Date(plan.date).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric"
@@ -428,7 +421,7 @@ export default function PlansPage() {
                 </CardHeader>
                 {plan.description && (
                   <CardContent className="px-4 pb-4 pt-0">
-                    <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-line break-words">
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line break-words">
                       {plan.description}
                     </p>
                   </CardContent>
