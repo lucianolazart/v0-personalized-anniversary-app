@@ -1,0 +1,3 @@
+export const VAPID_PUBLIC_KEY =
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+  "BI_ijW_-Dn5Y1G3jbHtl-MkVZ9UNKGHQw-Qn-6f2b3XIxaqm6UXyFkI9eC19QOJcU-MmEdCK6XGOXTj9lukxyqU"

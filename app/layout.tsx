@@ -70,7 +70,7 @@ export default function RootLayout({
         </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{
-            __html: `if ('serviceWorker' in navigator && !window.location.hostname.includes('localhost')) {
+            __html: `if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/service-worker.js').catch(function(err) {
                   console.log('ServiceWorker registration failed: ', err);

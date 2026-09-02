@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/movie-night/reminders",
+      "schedule": "0 13 * * *"
+    }
+  ]
+}

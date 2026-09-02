@@ -21,6 +21,7 @@ import {
   toInputDate,
 } from "../lib/movie-night"
 import { CoverPicker } from "../components/CoverPicker"
+import { MovieNightPushPrompt } from "../components/MovieNightPushPrompt"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -228,6 +229,7 @@ export default function MovieNightPage() {
       </header>
 
       <main className="px-4 pb-28 space-y-8">
+        <MovieNightPushPrompt />
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-2 border-muted border-t-primary" />
