@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { MediaWithId, NewMediaFormState } from "../types/media"
 import { MediaCard } from "../components/MediaCard"
+import { CoverPicker } from "../components/CoverPicker"
 import { cn } from "@/lib/utils"
 
 export default function MoviesPage() {
@@ -358,7 +359,7 @@ export default function MoviesPage() {
             <Plus className="h-7 w-7" />
           </button>
         </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle className="text-xl font-semibold">
                 {editingMedia ? "Edit movie or show" : "Add new movie or show"}
@@ -398,6 +399,22 @@ export default function MoviesPage() {
                   />
                 </div>
               </div>
+
+              <CoverPicker
+                key={editingMedia?.id ?? "new"}
+                query={newMedia.title}
+                image={newMedia.image}
+                onImageChange={(image) => setNewMedia((prev) => ({ ...prev, image }))}
+                onSelectResult={(result) =>
+                  setNewMedia((prev) => ({
+                    ...prev,
+                    title: result.title,
+                    year: result.year,
+                    type: result.type,
+                    image: result.image,
+                  }))
+                }
+              />
 
               <div>
                 <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type</Label>
@@ -495,18 +512,6 @@ export default function MoviesPage() {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="image" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Cover Image URL
-                </Label>
-                <Input
-                  id="image"
-                  value={newMedia.image}
-                  onChange={(e) => setNewMedia({ ...newMedia, image: e.target.value })}
-                  placeholder="https://example.com/image.jpg"
-                  className="h-11 mt-2 border-gray-200 dark:border-gray-800 focus:border-[#EA580C] focus:ring-[#EA580C]"
-                />
-              </div>
             </div>
             <DialogFooter>
               <Button 
