@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Bell, BellOff, BellRing } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { enableMovieNightPush, notificationSupport } from "../lib/push"
+import { enableMovieNightPush, notificationSupport, sendTestPush } from "../lib/push"
 
 type PushRemindersPromptProps = {
   heading?: string
@@ -18,13 +18,15 @@ export function MovieNightPushPrompt({
 }: PushRemindersPromptProps) {
   const [status, setStatus] = useState<"loading" | "unsupported" | "default" | "granted" | "denied" | "error">("loading")
   const [busy, setBusy] = useState(false)
+  const [testBusy, setTestBusy] = useState(false)
+  const [testMessage, setTestMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const current = notificationSupport()
     if (current === "granted") {
       void enableMovieNightPush()
         .then(() => setStatus("granted"))
-        .catch(() => setStatus("granted"))
+        .catch(() => setStatus("error"))
       return
     }
     setStatus(current)
@@ -32,6 +34,7 @@ export function MovieNightPushPrompt({
 
   const handleEnable = async () => {
     setBusy(true)
+    setTestMessage(null)
     try {
       await enableMovieNightPush()
       setStatus("granted")
@@ -43,6 +46,21 @@ export function MovieNightPushPrompt({
       }
     } finally {
       setBusy(false)
+    }
+  }
+
+  const handleTest = async () => {
+    setTestBusy(true)
+    setTestMessage(null)
+    try {
+      const result = await sendTestPush()
+      setStatus("granted")
+      setTestMessage(result.sent ? "Test sent — check your notifications." : "Nothing was sent.")
+    } catch {
+      setStatus("error")
+      setTestMessage("Could not send a test. On iPhone, open the app from the Home Screen.")
+    } finally {
+      setTestBusy(false)
     }
   }
 
@@ -77,10 +95,25 @@ export function MovieNightPushPrompt({
             Could not enable alerts. On iPhone, add the app to the Home Screen first.
           </p>
         )}
+        {testMessage && (
+          <p className="text-xs text-muted-foreground mt-1">{testMessage}</p>
+        )}
         {status === "default" && (
           <Button size="sm" className="mt-2 h-8" onClick={handleEnable} disabled={busy}>
             {busy ? "Enabling..." : "Enable reminders"}
           </Button>
+        )}
+        {(status === "granted" || status === "error") && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {status === "error" && (
+              <Button size="sm" className="h-8" onClick={handleEnable} disabled={busy}>
+                {busy ? "Retrying..." : "Retry"}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="h-8" onClick={handleTest} disabled={testBusy || busy}>
+              {testBusy ? "Sending..." : "Send test"}
+            </Button>
+          </div>
         )}
         {status === "denied" && (
           <p className="text-xs text-muted-foreground mt-1 inline-flex items-center gap-1">

@@ -1,6 +1,5 @@
-const CACHE_NAME = "lazarski-v3"
+const CACHE_NAME = "lazarski-v4"
 const urlsToCache = [
-  "/",
   "/manifest.json",
   "/icons/icon-192x192.png",
   "/icons/icon-384x384.png",
@@ -23,18 +22,23 @@ self.addEventListener("activate", (event) => {
 })
 
 self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url)
+  if (event.request.method !== "GET" || url.pathname.startsWith("/api/")) {
+    return
+  }
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached
-      return fetch(event.request).then((response) => {
+    fetch(event.request)
+      .then((response) => {
         if (!response || response.status !== 200 || response.type !== "basic") {
           return response
         }
-        const copy = response.clone()
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
+        if (url.pathname.match(/\.(png|jpg|jpeg|webp|svg|ico)$/)) {
+          const copy = response.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
+        }
         return response
       })
-    })
+      .catch(() => caches.match(event.request).then((cached) => cached || Response.error()))
   )
 })
 

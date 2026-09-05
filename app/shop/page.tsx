@@ -512,7 +512,7 @@ export default function ShopPage() {
                 <p className="text-sm text-muted-foreground">
                   {search
                     ? "Try another name."
-                    : "Add something you&apos;re out of, or tap Need more from the pantry."}
+                    : "Add something you're out of, or tap Need more from the pantry."}
                 </p>
               </div>
             )}

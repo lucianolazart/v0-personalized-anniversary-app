@@ -1,8 +1,4 @@
-import {
-  addDoc,
-  collection,
-  getDocs,
-} from "firebase/firestore"
+import { doc, setDoc } from "firebase/firestore"
 import { db } from "./firebase"
 import { VAPID_PUBLIC_KEY } from "./vapid-public"
 
@@ -16,9 +12,16 @@ function urlBase64ToUint8Array(base64: string) {
   return output
 }
 
+async function subscriptionDocId(endpoint: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint))
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+}
+
 export async function enableMovieNightPush() {
   if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
-    throw new Error("Este navegador no soporta avisos")
+    throw new Error("unsupported")
   }
 
   const permission = await Notification.requestPermission()
@@ -26,33 +29,47 @@ export async function enableMovieNightPush() {
     throw new Error("denied")
   }
 
-  const registration = await navigator.serviceWorker.register("/service-worker.js")
+  const registration = await navigator.serviceWorker.register("/service-worker.js", { scope: "/" })
   await navigator.serviceWorker.ready
 
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-  })
+  let subscription = await registration.pushManager.getSubscription()
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    })
+  }
 
   const payload = subscription.toJSON()
   if (!payload.endpoint || !payload.keys?.p256dh || !payload.keys?.auth) {
-    throw new Error("No se pudo crear la suscripción")
+    throw new Error("subscription")
   }
 
-  const existing = await getDocs(collection(db, "pushSubscriptions"))
-  const alreadySaved = existing.docs.some((item) => item.data().endpoint === payload.endpoint)
-  if (!alreadySaved) {
-    await addDoc(collection(db, "pushSubscriptions"), {
+  const id = await subscriptionDocId(payload.endpoint)
+  await setDoc(
+    doc(db, "pushSubscriptions", id),
+    {
       endpoint: payload.endpoint,
       keys: {
         p256dh: payload.keys.p256dh,
         auth: payload.keys.auth,
       },
-      createdAt: new Date(),
-    })
-  }
+      updatedAt: new Date(),
+    },
+    { merge: true }
+  )
 
   return subscription
+}
+
+export async function sendTestPush() {
+  await enableMovieNightPush()
+  const response = await fetch("/api/movie-night/test-push", { method: "POST" })
+  const data = (await response.json().catch(() => ({}))) as { error?: string; sent?: number }
+  if (!response.ok) {
+    throw new Error(data.error || "test-failed")
+  }
+  return data
 }
 
 export function notificationSupport() {
