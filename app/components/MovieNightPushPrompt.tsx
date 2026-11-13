@@ -18,9 +18,9 @@ type PushRemindersPromptProps = {
 }
 
 export function MovieNightPushPrompt({
-  heading = "🍿 Movie Night reminders",
-  grantedText = "You will get a ping the day before and the day of a scheduled night.",
-  defaultText = "Allow notifications to get a 🍿 alert the day before and the same day.",
+  heading = "🍿 Recordatorios de noche de peli",
+  grantedText = "Te avisamos el día antes y el mismo día de cada noche agendada.",
+  defaultText = "Activá las notificaciones para recibir un aviso 🍿 el día antes y el mismo día.",
 }: PushRemindersPromptProps) {
   const [status, setStatus] = useState<"loading" | "unsupported" | "default" | "granted" | "denied" | "error">("loading")
   const [busy, setBusy] = useState(false)
@@ -69,7 +69,7 @@ export function MovieNightPushPrompt({
       const result = await sendTestPush()
       setStatus("granted")
       setErrorMessage(null)
-      setTestMessage(result.sent ? "Test sent — check your notifications." : "Nothing was sent.")
+      setTestMessage(result.sent ? "Prueba enviada: fijate en tus notificaciones." : "No se envió nada.")
     } catch (error) {
       setTestMessage(pushErrorMessage(error))
     } finally {
@@ -90,8 +90,8 @@ export function MovieNightPushPrompt({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{heading}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Notifications are not available here. On iPhone (iOS 16.4+), tap Share → Add to Home
-            Screen and open the app from that icon.
+            Las notificaciones no están disponibles acá. En iPhone (iOS 16.4 o más), tocá Compartir →
+            Agregar a inicio y abrí la app desde ese ícono.
           </p>
         </div>
       </div>
@@ -117,12 +117,12 @@ export function MovieNightPushPrompt({
         )}
         {status === "denied" && (
           <p className="text-xs text-muted-foreground mt-0.5">
-            Notifications are blocked. Enable them in the browser or phone settings.
+            Las notificaciones están bloqueadas. Activalas en la configuración del navegador o del celular.
           </p>
         )}
         {status === "error" && (
           <p className="text-xs text-muted-foreground mt-0.5">
-            {errorMessage ?? "Could not enable alerts. On iPhone, add the app to the Home Screen first."}
+            {errorMessage ?? "No se pudieron activar los avisos. En iPhone, primero agregá la app a la pantalla de inicio."}
           </p>
         )}
         {testMessage && (
@@ -130,25 +130,25 @@ export function MovieNightPushPrompt({
         )}
         {status === "default" && (
           <Button size="sm" className="mt-2 h-8" onClick={handleEnable} disabled={busy}>
-            {busy ? "Enabling..." : "Enable reminders"}
+            {busy ? "Activando..." : "Activar recordatorios"}
           </Button>
         )}
         {(status === "granted" || status === "error") && (
           <div className="mt-2 flex flex-wrap gap-2">
             {status === "error" && (
               <Button size="sm" className="h-8" onClick={handleEnable} disabled={busy}>
-                {busy ? "Retrying..." : "Retry"}
+                {busy ? "Reintentando..." : "Reintentar"}
               </Button>
             )}
             <Button size="sm" variant="outline" className="h-8" onClick={handleTest} disabled={testBusy || busy}>
-              {testBusy ? "Sending..." : "Send test"}
+              {testBusy ? "Enviando..." : "Enviar prueba"}
             </Button>
           </div>
         )}
         {status === "denied" && (
           <p className="text-xs text-muted-foreground mt-1 inline-flex items-center gap-1">
             <BellOff className="h-3 w-3" />
-            Alerts are off
+            Avisos apagados
           </p>
         )}
       </div>

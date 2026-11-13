@@ -1,15 +1,16 @@
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
-import { Plus, Calendar, MoreVertical, Check } from "lucide-react"
-import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { Plus, MoreVertical, Check, MapPin, Navigation } from "lucide-react"
+import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, deleteField } from "firebase/firestore"
 import { db } from "../lib/firebase"
 import type { Plan, NewPlanFormState } from "../types/plans"
-import { categoryEmojis, categoryNames, groupActivePlans } from "../lib/plans"
-import { formatDisplayDate, parseLocalDate, toFirestoreDate, toInputDate } from "../lib/dates"
+import { categoryNames, directionsUrl, groupActivePlans, isLink, planFromDoc } from "../lib/plans"
+import { parseLocalDate, relativeDay, shortDateParts, toInputDate } from "../lib/dates"
+import { CategoryIcon, categoryIcon } from "../components/CategoryIcon"
+import { RemindersButton } from "../components/RemindersButton"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -22,13 +23,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,13 +31,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { MovieNightPushPrompt } from "../components/MovieNightPushPrompt"
+import { PageHeader, SectionLabel } from "@/components/page-header"
+import { DateColumn } from "@/components/date-column"
 
 const initialFormState: NewPlanFormState = {
   title: "",
   description: "",
   date: "",
+  location: "",
   category: "entretenimiento",
 }
 
@@ -56,19 +52,11 @@ export default function PlansPage() {
   const [newPlan, setNewPlan] = useState<NewPlanFormState>(initialFormState)
   const [schedulingId, setSchedulingId] = useState<string | null>(null)
   const [scheduleDate, setScheduleDate] = useState("")
+  const [showAllOverdue, setShowAllOverdue] = useState(false)
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "planes"), (snapshot) => {
-      const updatedPlans = snapshot.docs.map((item) => {
-        const data = item.data()
-        return {
-          id: item.id,
-          ...data,
-          date: toFirestoreDate(data.date) ?? undefined,
-        } as Plan
-      })
-
-      setPlans(updatedPlans)
+      setPlans(snapshot.docs.map((item) => planFromDoc(item.id, item.data())))
       setLoading(false)
     })
 
@@ -79,7 +67,7 @@ export default function PlansPage() {
     return plans.filter((plan) => categoryFilter === "todas" || plan.category === categoryFilter)
   }, [plans, categoryFilter])
 
-  const { highlight, thisWeek, later, ideas } = useMemo(
+  const { overdue, highlight, thisWeek, later, ideas } = useMemo(
     () => groupActivePlans(visiblePlans),
     [visiblePlans]
   )
@@ -97,6 +85,7 @@ export default function PlansPage() {
         title: newPlan.title,
         description: newPlan.description,
         date: newPlan.date ? parseLocalDate(newPlan.date) : null,
+        location: newPlan.location?.trim() || null,
         category: newPlan.category,
       }
 
@@ -117,8 +106,10 @@ export default function PlansPage() {
 
   const handleToggleComplete = async (plan: Plan) => {
     try {
+      const completed = !plan.completed
       await updateDoc(doc(db, "planes", plan.id), {
-        completed: !plan.completed,
+        completed,
+        completedAt: completed ? new Date() : deleteField(),
       })
     } catch (error) {
       console.error("Error updating plan status:", error)
@@ -139,6 +130,7 @@ export default function PlansPage() {
       title: plan.title,
       description: plan.description || "",
       date: plan.date ? toInputDate(plan.date) : "",
+      location: plan.location || "",
       category: plan.category,
     })
     setOpen(true)
@@ -155,6 +147,16 @@ export default function PlansPage() {
     setEditingPlan(null)
     setOpen(false)
   }
+
+  // "/plans?nuevo=1" (icon shortcut, calendar link) opens the new-plan form right away.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("nuevo") === "1") {
+      setNewPlan(initialFormState)
+      setEditingPlan(null)
+      setOpen(true)
+      window.history.replaceState(null, "", window.location.pathname)
+    }
+  }, [])
 
   const openSchedule = (plan: Plan) => {
     setSchedulingId(plan.id)
@@ -184,303 +186,295 @@ export default function PlansPage() {
     }
   }
 
-  const filterOptions: Array<{ value: Plan["category"] | "todas"; label: string; emoji?: string }> = [
-    { value: "todas", label: "All Plans", emoji: "✨" },
-    { value: "gastronomia", label: categoryNames.gastronomia, emoji: categoryEmojis.gastronomia },
-    { value: "aire_libre", label: categoryNames.aire_libre, emoji: categoryEmojis.aire_libre },
-    { value: "entretenimiento", label: categoryNames.entretenimiento, emoji: categoryEmojis.entretenimiento },
-    { value: "educativo", label: categoryNames.educativo, emoji: categoryEmojis.educativo },
-    { value: "otros", label: categoryNames.otros, emoji: categoryEmojis.otros },
+  const filterOptions: Array<{ value: Plan["category"] | "todas"; label: string }> = [
+    { value: "todas", label: "Todos" },
+    { value: "gastronomia", label: categoryNames.gastronomia },
+    { value: "aire_libre", label: categoryNames.aire_libre },
+    { value: "entretenimiento", label: categoryNames.entretenimiento },
+    { value: "educativo", label: categoryNames.educativo },
+    { value: "otros", label: categoryNames.otros },
   ]
 
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
-        <header className="mb-6 flex items-start justify-between gap-3">
-          <h1 className="text-3xl font-serif font-medium text-foreground tracking-tight">
-            Plans
-          </h1>
-          <ThemeToggle />
-        </header>
+  const rowHandlers = {
+    onEdit: handleEdit,
+    onDelete: handleDelete,
+    onSchedule: openSchedule,
+    onClearDate: handleClearDate,
+    onToggleComplete: handleToggleComplete,
+  }
 
-        <div className="mb-6 space-y-2">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4">
-            {filterOptions.map((option) => (
+  const visibleOverdue = showAllOverdue ? overdue : overdue.slice(0, 3)
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <PageHeader
+        title="Planes"
+        actions={
+          <RemindersButton
+            heading="📅 Recordatorios de planes"
+            grantedText="Te avisamos el día antes y el mismo día de cada plan con fecha."
+            defaultText="Activá las notificaciones para recibir un aviso 📅 el día antes y el mismo día."
+          />
+        }
+      />
+
+      <div className="px-5 max-w-xl mx-auto">
+        <div role="tablist" aria-label="Estado" className="mt-3 flex gap-6 border-b border-border">
+          {[
+            { value: false, label: "Pendientes" },
+            { value: true, label: "Hechos" },
+          ].map((tab) => (
+            <button
+              key={tab.label}
+              type="button"
+              role="tab"
+              aria-selected={showCompleted === tab.value}
+              onClick={() => setShowCompleted(tab.value)}
+              className={cn(
+                "-mb-px h-10 border-b-2 text-[15px] transition-colors",
+                showCompleted === tab.value
+                  ? "border-primary font-semibold text-foreground"
+                  : "border-transparent font-medium text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide py-3 -mx-5 px-5">
+          {filterOptions.map((option) => {
+            const active = categoryFilter === option.value
+            const Icon = option.value === "todas" ? null : categoryIcon(option.value)
+            return (
               <button
                 key={option.value}
+                type="button"
+                aria-pressed={active}
                 onClick={() => setCategoryFilter(option.value)}
                 className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors border",
-                  categoryFilter === option.value
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-card text-muted-foreground border-border hover:text-foreground"
+                  "h-8 shrink-0 whitespace-nowrap rounded-lg border px-3 text-[13px] transition-colors inline-flex items-center gap-1.5",
+                  active
+                    ? "border-primary/30 bg-accent font-semibold text-accent-foreground"
+                    : "border-border bg-card font-medium text-foreground hover:bg-muted"
                 )}
               >
-                {option.emoji && <span className="mr-1.5">{option.emoji}</span>}
+                {Icon && <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />}
                 {option.label}
               </button>
-            ))}
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4">
-            <button
-              onClick={() => setShowCompleted(false)}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors border",
-                !showCompleted
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-muted-foreground border-border hover:text-foreground"
-              )}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setShowCompleted(true)}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors border",
-                showCompleted
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-muted-foreground border-border hover:text-foreground"
-              )}
-            >
-              Completed
-            </button>
-          </div>
+            )
+          })}
         </div>
-
-        <div className="mb-6">
-          <MovieNightPushPrompt
-            heading="📅 Plan reminders"
-            grantedText="You will get a ping the day before and the day of a scheduled plan."
-            defaultText="Allow notifications to get a 📅 alert the day before and the same day."
-          />
-        </div>
-
-        <Dialog open={open} onOpenChange={(isOpen) => isOpen ? handleOpenDialog() : handleCloseDialog()}>
-          <DialogTrigger asChild>
-            <Button
-              className="w-full mb-6"
-              size="lg"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              New Plan
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-serif font-medium">
-                {editingPlan ? "Edit Plan" : "Add New Plan"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingPlan ? "Modify the plan details" : "Add a date to schedule it, or leave it empty as an idea."}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-5 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="title">
-                  Title
-                </Label>
-                <Input
-                  id="title"
-                  value={newPlan.title}
-                  onChange={(e) => setNewPlan({ ...newPlan, title: e.target.value })}
-                  placeholder="Enter plan title"
-                  className="h-11"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="description">
-                  Description (optional)
-                </Label>
-                <Textarea
-                  id="description"
-                  value={newPlan.description}
-                  onChange={(e) => setNewPlan({ ...newPlan, description: e.target.value })}
-                  placeholder="Add more details..."
-                  className="min-h-[100px]"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="date">
-                  Date (optional)
-                </Label>
-                <Input
-                  id="date"
-                  type="date"
-                  className="h-11"
-                  value={newPlan.date}
-                  onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="category">
-                  Category
-                </Label>
-                <Select value={newPlan.category} onValueChange={(value: Plan["category"]) => setNewPlan({ ...newPlan, category: value })}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gastronomia">{categoryEmojis.gastronomia} {categoryNames.gastronomia}</SelectItem>
-                    <SelectItem value="aire_libre">{categoryEmojis.aire_libre} {categoryNames.aire_libre}</SelectItem>
-                    <SelectItem value="entretenimiento">{categoryEmojis.entretenimiento} {categoryNames.entretenimiento}</SelectItem>
-                    <SelectItem value="educativo">{categoryEmojis.educativo} {categoryNames.educativo}</SelectItem>
-                    <SelectItem value="otros">{categoryEmojis.otros} {categoryNames.otros}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleAddPlan}>
-                {editingPlan ? "Save Changes" : "Save Plan"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-muted border-t-primary" />
-        </div>
-      ) : showCompleted ? (
-        <div className="space-y-2 px-4 pb-24 max-w-4xl mx-auto">
-          {completedPlans.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-muted-foreground text-sm">
-                No completed plans yet
-              </p>
-            </div>
-          ) : (
-            completedPlans.map((plan) => (
-              <PlanRow
-                key={plan.id}
-                plan={plan}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onSchedule={openSchedule}
-                onClearDate={handleClearDate}
-                onToggleComplete={handleToggleComplete}
+      <Dialog open={open} onOpenChange={(isOpen) => (isOpen ? handleOpenDialog() : handleCloseDialog())}>
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            aria-label="Nuevo plan"
+            className="fixed bottom-24 right-5 z-50 h-[52px] w-[52px] rounded-[14px] bg-foreground text-background flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+          >
+            <Plus className="h-6 w-6" />
+          </button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold tracking-tight">
+              {editingPlan ? "Editar plan" : "Nuevo plan"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingPlan
+                ? "Cambiá los datos del plan."
+                : "Ponele fecha para agendarlo, o dejala vacía y queda como idea."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-5 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="title">Título</Label>
+              <Input
+                id="title"
+                value={newPlan.title}
+                onChange={(e) => setNewPlan({ ...newPlan, title: e.target.value })}
+                placeholder="¿Qué quieren hacer?"
+                className="h-11"
               />
-            ))
-          )}
-        </div>
-      ) : (
-        <div className="space-y-8 px-4 pb-24 max-w-4xl mx-auto">
-          <section>
-            {highlight ? (
-              <div className="rounded-lg border border-border bg-card overflow-hidden">
-                <div className="p-5 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-primary font-medium pt-1">
-                      Next up
-                    </p>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuItem onClick={() => handleEdit(highlight)}>
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openSchedule(highlight)}>
-                          Edit date
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleClearDate(highlight)}>
-                          Move to ideas
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(highlight)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="description">Descripción (opcional)</Label>
+              <Textarea
+                id="description"
+                value={newPlan.description}
+                onChange={(e) => setNewPlan({ ...newPlan, description: e.target.value })}
+                placeholder="Más detalles..."
+                className="min-h-[100px]"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="location">Lugar (opcional)</Label>
+              <Input
+                id="location"
+                value={newPlan.location}
+                onChange={(e) => setNewPlan({ ...newPlan, location: e.target.value })}
+                placeholder="Dirección o link de Google Maps"
+                className="h-11"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="date">Fecha (opcional)</Label>
+              <Input
+                id="date"
+                type="date"
+                className="h-11"
+                value={newPlan.date}
+                onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="category">Categoría</Label>
+              <Select
+                value={newPlan.category}
+                onValueChange={(value: Plan["category"]) => setNewPlan({ ...newPlan, category: value })}
+              >
+                <SelectTrigger className="h-11">
+                  <SelectValue placeholder="Elegí una categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filterOptions
+                    .filter((option) => option.value !== "todas")
+                    .map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleAddPlan}>{editingPlan ? "Guardar cambios" : "Guardar plan"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <main className="px-5 pb-28 max-w-xl mx-auto">
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-7 w-7 border-2 border-muted border-t-primary" />
+          </div>
+        ) : showCompleted ? (
+          <section className="mt-2">
+            <SectionLabel count={completedPlans.length}>Hechos</SectionLabel>
+            {completedPlans.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Todavía no hay planes hechos</p>
+            ) : (
+              completedPlans.map((plan) => <PlanRow key={plan.id} plan={plan} {...rowHandlers} />)
+            )}
+          </section>
+        ) : (
+          <div className="space-y-7 mt-2">
+            {overdue.length > 0 && (
+              <section className="rounded-2xl bg-accent px-4 pt-3.5 pb-2">
+                <div className="flex items-center justify-between gap-3 pb-1">
+                  <p className="label-mono font-semibold text-primary">¿Lo hicieron? · {overdue.length}</p>
+                  {overdue.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllOverdue(!showAllOverdue)}
+                      className="h-8 text-[13px] font-medium text-accent-foreground"
+                    >
+                      {showAllOverdue ? "Ver menos" : `Ver ${overdue.length - 3} más`}
+                    </button>
+                  )}
+                </div>
+                <p className="text-[13px] text-accent-foreground/80 pb-1">Estos planes ya pasaron y siguen pendientes.</p>
+                {visibleOverdue.map((plan, index) => (
+                  <div key={plan.id} className={cn("py-3", index > 0 && "border-t border-primary/15")}>
+                    <div className="flex gap-3.5">
+                      <DateColumn date={plan.date} top="month" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[15px] font-semibold leading-snug">{plan.title}</p>
+                        <p className="mt-0.5 text-[13px] text-muted-foreground">
+                          {plan.date ? capitalize(plan.date.toLocaleDateString("es-AR", { weekday: "long" })) : ""} ·{" "}
+                          {categoryNames[plan.category]}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+                      <Button size="sm" className="h-9 rounded-lg px-2" onClick={() => handleToggleComplete(plan)}>
+                        <Check className="h-3.5 w-3.5 mr-1" />
+                        Hecho
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-9 rounded-lg px-2 bg-card" onClick={() => openSchedule(plan)}>
+                        Reprogramar
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-9 rounded-lg px-2 bg-card" onClick={() => handleClearDate(plan)}>
+                        A ideas
+                      </Button>
+                    </div>
                   </div>
-                  <h2 className="text-2xl font-serif font-medium leading-tight flex items-center gap-2">
-                    <span>{categoryEmojis[highlight.category]}</span>
-                    <span>{highlight.title}</span>
-                  </h2>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5" />
-                    {highlight.date ? formatDisplayDate(highlight.date) : ""}
-                    <span>· {categoryNames[highlight.category]}</span>
-                  </p>
+                ))}
+              </section>
+            )}
+
+            <section>
+              {highlight ? (
+                <div className="rounded-[14px] border border-border bg-card p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="pt-0.5 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-primary">
+                      {highlight.date
+                        ? `${shortDateParts(highlight.date).weekday} ${shortDateParts(highlight.date).day} ${shortDateParts(highlight.date).month} · ${relativeDay(highlight.date)}`
+                        : "Próximo"}
+                    </p>
+                    <PlanMenu plan={highlight} {...rowHandlers} />
+                  </div>
+                  <div className="mt-1.5 flex items-start gap-3">
+                    <CategoryIcon category={highlight.category} />
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-[22px] font-semibold leading-tight tracking-[-0.03em]">{highlight.title}</h2>
+                      <p className="mt-0.5 text-[13px] text-muted-foreground">{categoryNames[highlight.category]}</p>
+                    </div>
+                  </div>
+                  {highlight.location && <PlanLocation location={highlight.location} />}
                   {highlight.description && (
-                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                       {highlight.description}
                     </p>
                   )}
-                  <Button className="w-full" onClick={() => handleToggleComplete(highlight)}>
+                  <Button
+                    className="mt-4 h-11 w-full rounded-[10px] bg-foreground text-background hover:bg-foreground/90"
+                    onClick={() => handleToggleComplete(highlight)}
+                  >
                     <Check className="h-4 w-4 mr-2" />
-                    Mark as done
+                    Marcar como hecho
                   </Button>
                 </div>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-border bg-card/50 px-4 py-10 text-center">
-                <p className="font-serif text-xl mb-1">Nothing scheduled</p>
-                <p className="text-sm text-muted-foreground">
-                  Give an idea a date, or add a new plan.
-                </p>
-              </div>
-            )}
-          </section>
+              ) : (
+                <div className="rounded-[14px] border border-dashed border-border px-4 py-8 text-center">
+                  <p className="text-lg font-semibold mb-1">Nada agendado</p>
+                  <p className="text-sm text-muted-foreground">Ponele fecha a una idea o agregá un plan nuevo.</p>
+                </div>
+              )}
+            </section>
 
-          <PlanSection
-            title="This week"
-            empty="No other plans this week."
-            items={thisWeek}
-            hideWhenEmpty
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onSchedule={openSchedule}
-            onClearDate={handleClearDate}
-            onToggleComplete={handleToggleComplete}
-          />
-
-          <PlanSection
-            title="Later"
-            empty="Nothing further out."
-            items={later}
-            hideWhenEmpty
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onSchedule={openSchedule}
-            onClearDate={handleClearDate}
-            onToggleComplete={handleToggleComplete}
-          />
-
-          <PlanSection
-            title="Ideas"
-            empty="Bucket-list plans without a date."
-            items={ideas}
-            hideWhenEmpty={false}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onSchedule={openSchedule}
-            onClearDate={handleClearDate}
-            onToggleComplete={handleToggleComplete}
-          />
-        </div>
-      )}
+            <PlanSection title="Esta semana" empty="No hay otros planes esta semana." items={thisWeek} hideWhenEmpty {...rowHandlers} />
+            <PlanSection title="Más adelante" empty="Nada más adelante." items={later} hideWhenEmpty {...rowHandlers} />
+            <PlanSection title="Ideas" empty="Planes sin fecha para algún día." items={ideas} hideWhenEmpty={false} {...rowHandlers} />
+          </div>
+        )}
+      </main>
 
       <Dialog open={Boolean(schedulingId)} onOpenChange={(isOpen) => !isOpen && setSchedulingId(null)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle className="font-serif">Schedule</DialogTitle>
-            <DialogDescription>
-              Pick a date to move this idea onto the calendar.
-            </DialogDescription>
+            <DialogTitle className="font-semibold tracking-tight">Agendar</DialogTitle>
+            <DialogDescription>Elegí una fecha para pasarlo al calendario.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 py-2">
-            <Label htmlFor="schedule-date">Date</Label>
+            <Label htmlFor="schedule-date">Fecha</Label>
             <Input
               id="schedule-date"
               type="date"
@@ -491,7 +485,7 @@ export default function PlansPage() {
           </div>
           <DialogFooter>
             <Button onClick={handleSchedule} disabled={!scheduleDate}>
-              Save date
+              Guardar fecha
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -500,151 +494,122 @@ export default function PlansPage() {
   )
 }
 
+function capitalize(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+type RowHandlers = {
+  onEdit: (plan: Plan) => void
+  onDelete: (plan: Plan) => void
+  onSchedule: (plan: Plan) => void
+  onClearDate: (plan: Plan) => void
+  onToggleComplete: (plan: Plan) => void
+}
+
 function PlanSection({
   title,
   empty,
   items,
   hideWhenEmpty,
-  onEdit,
-  onDelete,
-  onSchedule,
-  onClearDate,
-  onToggleComplete,
+  ...handlers
 }: {
   title: string
   empty: string
   items: Plan[]
   hideWhenEmpty: boolean
-  onEdit: (plan: Plan) => void
-  onDelete: (plan: Plan) => void
-  onSchedule: (plan: Plan) => void
-  onClearDate: (plan: Plan) => void
-  onToggleComplete: (plan: Plan) => void
-}) {
+} & RowHandlers) {
   if (hideWhenEmpty && items.length === 0) return null
 
   return (
-    <section className="space-y-3">
-      <h3 className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground font-medium">
-        {title}
-      </h3>
+    <section>
+      <SectionLabel count={items.length}>{title}</SectionLabel>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{empty}</p>
+        <p className="py-3.5 text-sm text-muted-foreground border-b border-border">{empty}</p>
       ) : (
-        <div className="space-y-2">
-          {items.map((plan) => (
-            <PlanRow
-              key={plan.id}
-              plan={plan}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onSchedule={onSchedule}
-              onClearDate={onClearDate}
-              onToggleComplete={onToggleComplete}
-            />
-          ))}
-        </div>
+        items.map((plan) => <PlanRow key={plan.id} plan={plan} {...handlers} />)
       )}
     </section>
   )
 }
 
-function PlanRow({
-  plan,
-  onEdit,
-  onDelete,
-  onSchedule,
-  onClearDate,
-  onToggleComplete,
-}: {
-  plan: Plan
-  onEdit: (plan: Plan) => void
-  onDelete: (plan: Plan) => void
-  onSchedule: (plan: Plan) => void
-  onClearDate: (plan: Plan) => void
-  onToggleComplete: (plan: Plan) => void
-}) {
+function PlanLocation({ location }: { location: string }) {
+  const link = isLink(location)
   return (
-    <Card
-      className={cn(
-        "border border-border shadow-none bg-card",
-        plan.completed && "opacity-60"
-      )}
-    >
-      <CardHeader className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 mb-1">
-              <CardTitle className={cn(
-                "text-base font-serif font-medium text-foreground leading-tight flex items-center gap-2",
-                plan.completed && "line-through text-muted-foreground"
-              )}>
-                <span>{categoryEmojis[plan.category]}</span>
-                <span>{plan.title}</span>
-              </CardTitle>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem onClick={() => onEdit(plan)}>
-                    Edit
-                  </DropdownMenuItem>
-                  {!plan.completed && (
-                    <DropdownMenuItem onClick={() => onSchedule(plan)}>
-                      {plan.date ? "Edit date" : "Schedule"}
-                    </DropdownMenuItem>
-                  )}
-                  {plan.date && !plan.completed && (
-                    <DropdownMenuItem onClick={() => onClearDate(plan)}>
-                      Move to ideas
-                    </DropdownMenuItem>
-                  )}
-                  {!plan.completed && (
-                    <DropdownMenuItem onClick={() => onToggleComplete(plan)}>
-                      Mark as done
-                    </DropdownMenuItem>
-                  )}
-                  {plan.completed && (
-                    <DropdownMenuItem onClick={() => onToggleComplete(plan)}>
-                      Mark as active
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem
-                    onClick={() => onDelete(plan)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            {plan.date ? (
-              <CardDescription className="flex items-center gap-1.5 mt-1.5 text-sm">
-                <Calendar className="h-3.5 w-3.5" />
-                <span>{formatDisplayDate(plan.date)}</span>
-              </CardDescription>
-            ) : (
-              <CardDescription className="text-sm mt-1.5">
-                No date set
-              </CardDescription>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      {plan.description && (
-        <CardContent className="px-4 pb-4 pt-0">
-          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line break-words">
+    <div className="mt-2 flex items-center justify-between gap-3 text-[13px]">
+      <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+        <MapPin className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{link ? "Ubicación en Maps" : location}</span>
+      </span>
+      <a
+        href={directionsUrl(location)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="shrink-0 inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+      >
+        <Navigation className="h-3.5 w-3.5" />
+        Cómo llegar
+      </a>
+    </div>
+  )
+}
+
+function PlanMenu({ plan, onEdit, onDelete, onSchedule, onClearDate, onToggleComplete }: { plan: Plan } & RowHandlers) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Opciones de ${plan.title}`}
+          className="-mr-1.5 -mt-1 h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem onClick={() => onEdit(plan)}>Editar</DropdownMenuItem>
+        {!plan.completed && (
+          <DropdownMenuItem onClick={() => onSchedule(plan)}>{plan.date ? "Cambiar fecha" : "Agendar"}</DropdownMenuItem>
+        )}
+        {plan.date && !plan.completed && (
+          <DropdownMenuItem onClick={() => onClearDate(plan)}>Pasar a ideas</DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={() => onToggleComplete(plan)}>
+          {plan.completed ? "Volver a pendientes" : "Marcar como hecho"}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onDelete(plan)} className="text-destructive focus:text-destructive">
+          Borrar
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function PlanRow({ plan, ...handlers }: { plan: Plan } & RowHandlers) {
+  return (
+    <div className="flex items-start gap-3.5 py-3 border-b border-border">
+      {plan.date ? <DateColumn date={plan.date} top={plan.completed ? "month" : "weekday"} /> : <CategoryIcon category={plan.category} />}
+      <div className="min-w-0 flex-1">
+        <p
+          className={cn(
+            "text-[15px] font-semibold leading-snug",
+            plan.completed && "line-through text-muted-foreground"
+          )}
+        >
+          {plan.title}
+        </p>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">
+          {categoryNames[plan.category]}
+          {plan.date && !plan.completed ? ` · ${relativeDay(plan.date)}` : ""}
+        </p>
+        {plan.location && <PlanLocation location={plan.location} />}
+        {plan.description && (
+          <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed whitespace-pre-line break-words">
             {plan.description}
           </p>
-        </CardContent>
-      )}
-    </Card>
+        )}
+      </div>
+      <PlanMenu plan={plan} {...handlers} />
+    </div>
   )
 }

@@ -147,20 +147,20 @@ export function pushErrorMessage(error: unknown) {
   const code = error instanceof PushSetupError ? error.code : undefined
   switch (code) {
     case "unsupported":
-      return "This browser can't receive push. On iPhone, add the app to the Home Screen and open it from there."
+      return "Este navegador no puede recibir notificaciones. En iPhone, agregá la app a la pantalla de inicio y abrila desde ahí."
     case "denied":
-      return "Notifications are blocked. Enable them in the browser or phone settings."
+      return "Las notificaciones están bloqueadas. Activalas en la configuración del navegador o del celular."
     case "vapid-missing":
-      return "Push is not configured: NEXT_PUBLIC_VAPID_PUBLIC_KEY is missing in this build."
+      return "Las notificaciones no están configuradas: falta NEXT_PUBLIC_VAPID_PUBLIC_KEY en este build."
     case "sw-not-active":
-      return "The app's service worker did not start. Close the app completely and open it again."
+      return "El service worker de la app no arrancó. Cerrá la app del todo y volvé a abrirla."
     case "subscription":
-      return `The phone refused the push subscription${error instanceof Error && error.message !== code ? `: ${error.message}` : "."}`
+      return `El celular rechazó la suscripción${error instanceof Error && error.message !== code ? `: ${error.message}` : "."}`
     case "save-failed":
-      return "Could not save this device's subscription in the database."
+      return "No se pudo guardar la suscripción de este dispositivo en la base de datos."
     case "test-failed":
-      return `Test failed: ${(error as Error).message}`
+      return `Falló la prueba: ${(error as Error).message}`
     default:
-      return "Could not enable alerts. On iPhone, add the app to the Home Screen first."
+      return "No se pudieron activar los avisos. En iPhone, primero agregá la app a la pantalla de inicio."
   }
 }

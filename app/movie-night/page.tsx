@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Calendar, Check, MoreVertical, Plus } from "lucide-react"
+import { Check, ChevronDown, MoreVertical, Plus } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   addDoc,
   collection,
@@ -15,14 +16,19 @@ import type { MediaWithId } from "../types/media"
 import type { MovieNight, NewMovieNightFormState } from "../types/movie-night"
 import {
   findOrCreateMovie,
-  formatNightDate,
   parseLocalDate,
   startOfToday,
   toInputDate,
 } from "../lib/movie-night"
 import { CoverPicker } from "../components/CoverPicker"
-import { MovieNightPushPrompt } from "../components/MovieNightPushPrompt"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { WatchProviders } from "../components/WatchProviders"
+import { WatchedOnIcon, WatchedOnOptions } from "../components/WatchedOnPicker"
+import { parseWatchedOn } from "../lib/watched-on"
+import { relativeDay, shortDateParts } from "../lib/dates"
+import type { WatchedOn } from "../types/media"
+import { PageHeader, SectionLabel } from "@/components/page-header"
+import { DateColumn } from "@/components/date-column"
+import { RemindersButton } from "../components/RemindersButton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -69,6 +75,7 @@ export default function MovieNightPage() {
   const [schedulingId, setSchedulingId] = useState<string | null>(null)
   const [scheduleDate, setScheduleDate] = useState("")
   const [deletingNight, setDeletingNight] = useState<MovieNight | null>(null)
+  const [watchingNight, setWatchingNight] = useState<MovieNight | null>(null)
 
   useEffect(() => {
     const nightsUnsub = onSnapshot(collection(db, "movieNights"), (snapshot) => {
@@ -82,6 +89,8 @@ export default function MovieNightPage() {
           image: data.image,
           date: data.date?.toDate?.() ?? null,
           status: data.status,
+          tmdbId: typeof data.tmdbId === "number" ? data.tmdbId : undefined,
+          watchedOn: parseWatchedOn(data.watchedOn),
         } as MovieNight
       })
       setNights(next)
@@ -98,6 +107,7 @@ export default function MovieNightPage() {
           image: data.image,
           state: data.state,
           type: data.type,
+          tmdbId: typeof data.tmdbId === "number" ? data.tmdbId : undefined,
         } as MediaWithId
       })
       setCatalog(next)
@@ -142,6 +152,14 @@ export default function MovieNightPage() {
     setOpen(false)
   }
 
+  // "/movie-night?nuevo=1" (icon shortcut, calendar link) opens the add form right away.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("nuevo") === "1") {
+      setOpen(true)
+      window.history.replaceState(null, "", window.location.pathname)
+    }
+  }, [])
+
   const handleSave = async () => {
     if (!form.title) return
     try {
@@ -151,6 +169,7 @@ export default function MovieNightPage() {
         title: form.title,
         year: form.year,
         image: form.image || "/placeholder.svg?height=450&width=300",
+        tmdbId: form.tmdbId,
       })
       const hasDate = Boolean(form.date)
       await addDoc(collection(db, "movieNights"), {
@@ -160,6 +179,7 @@ export default function MovieNightPage() {
         image: form.image || "/placeholder.svg?height=450&width=300",
         date: hasDate ? parseLocalDate(form.date) : null,
         status: hasDate ? "scheduled" : "queued",
+        ...(form.tmdbId ? { tmdbId: form.tmdbId } : {}),
       })
       handleCloseDialog()
     } catch (error) {
@@ -169,11 +189,13 @@ export default function MovieNightPage() {
     }
   }
 
-  const handleMarkWatched = async (night: MovieNight) => {
+  const handleMarkWatched = async (night: MovieNight, watchedOn: WatchedOn | null) => {
+    setWatchingNight(null)
+    const where = watchedOn ? { watchedOn } : {}
     try {
-      await updateDoc(doc(db, "movieNights", night.id), { status: "watched" })
+      await updateDoc(doc(db, "movieNights", night.id), { status: "watched", ...where })
       if (night.mediaId) {
-        await updateDoc(doc(db, "peliculas", night.mediaId), { state: "watched" })
+        await updateDoc(doc(db, "peliculas", night.mediaId), { state: "watched", ...where })
       }
     } catch (error) {
       console.error("Error marking movie night as watched:", error)
@@ -221,109 +243,122 @@ export default function MovieNightPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="px-4 pt-12 pb-4 sticky top-0 z-20 bg-background/90 backdrop-blur-md">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-3xl font-serif font-medium tracking-tight">Movie Night</h1>
-          <ThemeToggle />
-        </div>
-      </header>
+      <PageHeader title="Noche de peli" actions={<RemindersButton />} />
 
-      <main className="px-4 pb-28 space-y-8">
-        <MovieNightPushPrompt />
+      <main className="px-5 pb-28 max-w-xl mx-auto">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-muted border-t-primary" />
+            <div className="animate-spin rounded-full h-7 w-7 border-2 border-muted border-t-primary" />
           </div>
         ) : (
           <>
-            <section>
+            <section className="mt-4">
               {highlight ? (
-                <div className="rounded-lg border border-border bg-card overflow-hidden">
-                  <div className="relative aspect-[2/3] max-h-[420px] mx-auto w-full sm:max-w-sm bg-muted">
+                <div className="rounded-[14px] border border-border bg-card p-3.5">
+                  <div className="flex gap-4">
                     <img
                       src={highlight.image || "/placeholder.svg?height=450&width=300"}
                       alt={highlight.title}
-                      className="h-full w-full object-cover"
+                      className="h-36 w-24 shrink-0 rounded-md object-cover bg-muted"
                     />
-                  </div>
-                  <div className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-primary font-medium pt-1">
-                        Next up
-                      </p>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem onClick={() => openSchedule(highlight)}>
-                            Edit date
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleClearDate(highlight)}>
-                            Move to ideas
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setDeletingNight(highlight)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <div className="min-w-0 flex-1 flex flex-col">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="pt-0.5 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-primary">
+                          {highlight.date
+                            ? `${shortDateParts(highlight.date).weekday} ${shortDateParts(highlight.date).day} ${shortDateParts(highlight.date).month} · ${relativeDay(highlight.date)}`
+                            : "Próxima"}
+                        </p>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label="Más opciones"
+                              className="-mr-1.5 -mt-1.5 h-8 w-8 p-0 text-muted-foreground"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem onClick={() => openSchedule(highlight)}>
+                              Cambiar fecha
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleClearDate(highlight)}>
+                              Pasar a ideas
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setDeletingNight(highlight)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              Borrar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <h2 className="mt-1.5 text-2xl font-semibold leading-[1.05] tracking-[-0.03em]">
+                        {highlight.title}
+                      </h2>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">{highlight.year}</p>
+                      <WatchProviders
+                        key={highlight.id}
+                        className="mt-auto pt-3"
+                        title={highlight.title}
+                        year={highlight.year}
+                        type="pelicula"
+                        tmdbId={highlight.tmdbId}
+                      />
                     </div>
-                    <h2 className="text-2xl font-serif font-medium leading-tight">
-                      {highlight.title}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      {highlight.year}
-                      {highlight.date ? ` · ${formatNightDate(highlight.date)}` : ""}
-                    </p>
-                    <Button className="w-full" onClick={() => handleMarkWatched(highlight)}>
-                      <Check className="h-4 w-4 mr-2" />
-                      Mark as watched
-                    </Button>
                   </div>
+                  <Button
+                    className="mt-3.5 h-11 w-full rounded-[10px] bg-foreground text-background hover:bg-foreground/90"
+                    onClick={() => setWatchingNight(highlight)}
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Marcar como vista
+                  </Button>
                 </div>
               ) : (
-                <div className="rounded-lg border border-dashed border-border bg-card/50 px-4 py-10 text-center">
-                  <p className="font-serif text-xl mb-1">No movie night scheduled</p>
+                <div className="rounded-[14px] border border-dashed border-border px-4 py-10 text-center">
+                  <p className="text-lg font-semibold mb-1">No hay noche de peli agendada</p>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Pick a film and a date, or add an idea for later.
+                    Elegí una peli y una fecha, o guardala como idea.
                   </p>
-                  <Button onClick={() => setOpen(true)}>Schedule one</Button>
+                  <Button onClick={() => setOpen(true)}>Agendar una</Button>
                 </div>
               )}
             </section>
 
-            <NightList
-              title="Ideas"
-              empty="Films you might watch on a future night."
-              items={ideas}
-              onSchedule={openSchedule}
-              onUnschedule={handleClearDate}
-              onDelete={setDeletingNight}
-            />
+            <div className="mt-7 space-y-7">
+              <NightList
+                title="Próximas"
+                empty="No hay otras noches agendadas."
+                items={upcoming}
+                onSchedule={openSchedule}
+                onUnschedule={handleClearDate}
+                onDelete={setDeletingNight}
+              />
 
-            <NightList
-              title="Upcoming"
-              empty="No other nights on the calendar."
-              items={upcoming}
-              onSchedule={openSchedule}
-              onUnschedule={handleClearDate}
-              onDelete={setDeletingNight}
-            />
+              <NightList
+                title="Ideas"
+                empty="Pelis para alguna próxima noche. Tocá + para sumar una."
+                items={ideas}
+                collapseKey="movie-night-ideas-open"
+                onSchedule={openSchedule}
+                onUnschedule={handleClearDate}
+                onDelete={setDeletingNight}
+              />
 
-            <NightList
-              title="History"
-              empty="Watched nights will show up here with their planned date."
-              items={history}
-              history
-              onSchedule={openSchedule}
-              onUnschedule={handleClearDate}
-              onDelete={setDeletingNight}
-            />
+              <NightList
+                title="Historial"
+                empty="Acá aparecen las noches que ya vieron."
+                items={history}
+                history
+                collapseKey="movie-night-history-open"
+                onSchedule={openSchedule}
+                onUnschedule={handleClearDate}
+                onDelete={setDeletingNight}
+              />
+            </div>
           </>
         )}
       </main>
@@ -332,33 +367,33 @@ export default function MovieNightPage() {
         <DialogTrigger asChild>
           <button
             type="button"
-            className="fixed bottom-24 right-6 w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/30 flex items-center justify-center z-50 active:scale-95 transition-transform"
-            aria-label="Add movie night"
+            className="fixed bottom-24 right-5 z-50 h-[52px] w-[52px] rounded-[14px] bg-foreground text-background flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+            aria-label="Agregar noche de peli"
           >
-            <Plus className="h-7 w-7" />
+            <Plus className="h-6 w-6" />
           </button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle className="font-serif font-medium text-xl">Add a movie</DialogTitle>
+            <DialogTitle className="font-semibold tracking-tight text-xl">Agregar una peli</DialogTitle>
             <DialogDescription>
-              Add an idea, or pick a date to schedule the next Movie Night. It also goes on the Movies watchlist.
+              Guardala como idea o ponele fecha para agendar la próxima noche de peli. También se suma a Pelis como “por ver”.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-5 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <div className="col-span-3">
-                <Label htmlFor="night-title">Title</Label>
+                <Label htmlFor="night-title">Título</Label>
                 <Input
                   id="night-title"
                   value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="Search a movie"
+                  onChange={(e) => setForm({ ...form, title: e.target.value, tmdbId: undefined })}
+                  placeholder="Buscá una peli"
                   className="h-11 mt-2"
                 />
               </div>
               <div>
-                <Label htmlFor="night-year">Year</Label>
+                <Label htmlFor="night-year">Año</Label>
                 <Input
                   id="night-year"
                   type="number"
@@ -380,11 +415,12 @@ export default function MovieNightPage() {
                   title: result.title,
                   year: result.year,
                   image: result.image,
+                  tmdbId: result.tmdbId,
                 }))
               }
             />
             <div>
-              <Label htmlFor="night-date">Date (optional)</Label>
+              <Label htmlFor="night-date">Fecha (opcional)</Label>
               <Input
                 id="night-date"
                 type="date"
@@ -393,13 +429,13 @@ export default function MovieNightPage() {
                 className="h-11 mt-2"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                Leave empty to save as an idea. Add a date to schedule it.
+                Sin fecha queda como idea; con fecha se agenda.
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button onClick={handleSave} disabled={saving || !form.title}>
-              {saving ? "Saving..." : form.date ? "Schedule night" : "Save idea"}
+              {saving ? "Guardando..." : form.date ? "Agendar noche" : "Guardar idea"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -408,8 +444,8 @@ export default function MovieNightPage() {
       <Dialog open={!!schedulingId} onOpenChange={(isOpen) => !isOpen && setSchedulingId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-serif font-medium">Pick a date</DialogTitle>
-            <DialogDescription>This becomes a scheduled Movie Night.</DialogDescription>
+            <DialogTitle className="font-semibold tracking-tight">Elegí una fecha</DialogTitle>
+            <DialogDescription>Queda agendada como noche de peli.</DialogDescription>
           </DialogHeader>
           <Input
             type="date"
@@ -419,26 +455,52 @@ export default function MovieNightPage() {
           />
           <DialogFooter>
             <Button onClick={handleSchedule} disabled={!scheduleDate}>
-              Schedule
+              Agendar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={!!watchingNight} onOpenChange={(isOpen) => !isOpen && setWatchingNight(null)}>
+        <DialogContent className="sm:max-w-[440px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-semibold tracking-tight text-xl">¿Dónde la vieron?</DialogTitle>
+            <DialogDescription>{watchingNight?.title}</DialogDescription>
+          </DialogHeader>
+          {watchingNight && (
+            <WatchedOnOptions
+              title={watchingNight.title}
+              year={watchingNight.year}
+              type="pelicula"
+              tmdbId={watchingNight.tmdbId}
+              onPick={(watchedOn) => handleMarkWatched(watchingNight, watchedOn)}
+            />
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => watchingNight && handleMarkWatched(watchingNight, null)}
+            >
+              Marcar sin elegir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!deletingNight} onOpenChange={(isOpen) => !isOpen && setDeletingNight(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif font-medium">Remove from Movie Night?</AlertDialogTitle>
+            <AlertDialogTitle className="font-semibold tracking-tight">¿Sacarla de noche de peli?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deletingNight?.title} will leave this page. It stays in Movies.
+              {deletingNight?.title} sale de esta lista, pero queda en Pelis.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deletingNight && handleDelete(deletingNight)}
             >
-              Delete
+              Borrar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -452,6 +514,7 @@ function NightList({
   empty,
   items,
   history = false,
+  collapseKey,
   onSchedule,
   onUnschedule,
   onDelete,
@@ -460,61 +523,99 @@ function NightList({
   empty: string
   items: MovieNight[]
   history?: boolean
+  /** When set, the section folds like an accordion (closed by default) and remembers it per device. */
+  collapseKey?: string
   onSchedule: (night: MovieNight) => void
   onUnschedule: (night: MovieNight) => void
   onDelete: (night: MovieNight) => void
 }) {
+  const [open, setOpen] = useState(!collapseKey)
+
+  useEffect(() => {
+    if (!collapseKey) return
+    try {
+      const saved = window.localStorage.getItem(collapseKey)
+      if (saved !== null) setOpen(saved === "1")
+    } catch {
+      // Storage can be unavailable (private mode); the section just starts closed.
+    }
+  }, [collapseKey])
+
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    if (!collapseKey) return
+    try {
+      window.localStorage.setItem(collapseKey, next ? "1" : "0")
+    } catch {
+      // Ignore: the choice just won't be remembered.
+    }
+  }
+
   return (
     <section>
-      <h2 className="font-serif text-lg font-medium mb-3">{title}</h2>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{empty}</p>
+      {collapseKey ? (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          className="flex h-12 w-full items-center justify-between gap-3 border-b border-border text-left"
+        >
+          <span className="flex items-baseline gap-2">
+            <span className="text-[15px] font-semibold">{title}</span>
+            <span className="font-mono text-xs text-muted-foreground tabular-nums">{items.length}</span>
+          </span>
+          <ChevronDown
+            className={cn("h-[18px] w-[18px] text-muted-foreground transition-transform", open && "rotate-180")}
+          />
+        </button>
       ) : (
-        <div className="space-y-2">
+        <SectionLabel count={items.length}>{title}</SectionLabel>
+      )}
+      {collapseKey && !open ? null : items.length === 0 ? (
+        <p className="py-3.5 text-sm text-muted-foreground border-b border-border">{empty}</p>
+      ) : (
+        <div>
           {items.map((night) => (
-            <div
-              key={night.id}
-              className="flex items-center gap-3 rounded-md border border-border bg-card p-2"
-            >
-              <div className="relative shrink-0 w-12 h-[72px] overflow-hidden rounded-sm bg-muted">
-                <img
-                  src={night.image || "/placeholder.svg?height=450&width=300"}
-                  alt={night.title}
-                  className="h-full w-full object-cover"
-                />
-              </div>
+            <div key={night.id} className="flex items-center gap-3.5 py-2.5 border-b border-border">
+              <DateColumn date={night.date} top={history ? "month" : "weekday"} />
+              <img
+                src={night.image || "/placeholder.svg?height=450&width=300"}
+                alt=""
+                className="h-[45px] w-[30px] shrink-0 rounded object-cover bg-muted"
+              />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium line-clamp-1">{night.title}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {night.year}
-                  {night.date ? ` · ${formatNightDate(night.date)}` : ""}
-                </p>
+                <p className="text-[15px] font-medium line-clamp-1">{night.title}</p>
+                <p className="font-mono text-[11px] text-muted-foreground">{night.year}</p>
               </div>
-              {!history && night.date && (
-                <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              )}
+              {history && night.watchedOn && <WatchedOnIcon value={night.watchedOn} />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Opciones de ${night.title}`}
+                    className="h-8 w-8 p-0 text-muted-foreground"
+                  >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
                   {!history && (
                     <DropdownMenuItem onClick={() => onSchedule(night)}>
-                      {night.date ? "Edit date" : "Schedule"}
+                      {night.date ? "Cambiar fecha" : "Agendar"}
                     </DropdownMenuItem>
                   )}
                   {!history && night.date && (
                     <DropdownMenuItem onClick={() => onUnschedule(night)}>
-                      Move to ideas
+                      Pasar a ideas
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem
                     onClick={() => onDelete(night)}
                     className="text-destructive focus:text-destructive"
                   >
-                    Delete
+                    Borrar
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

@@ -1,5 +1,5 @@
 // Bump CACHE_NAME whenever this file changes so installed PWAs pick up the new worker.
-const CACHE_NAME = "lazarski-v6"
+const CACHE_NAME = "lazarski-v7"
 const urlsToCache = [
   "/manifest.webmanifest",
   "/icons/icon-192x192.png",
@@ -47,7 +47,7 @@ self.addEventListener("fetch", (event) => {
 })
 
 self.addEventListener("push", (event) => {
-  let data = { title: "🍿 Movie Night", body: "It is almost time.", url: "/movie-night" }
+  let data = { title: "🍿 Noche de peli", body: "Ya casi es la hora.", url: "/movie-night" }
   try {
     if (event.data) {
       data = { ...data, ...event.data.json() }

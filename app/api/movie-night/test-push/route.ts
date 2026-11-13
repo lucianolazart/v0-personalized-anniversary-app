@@ -26,14 +26,14 @@ function isPushEndpoint(value: unknown): value is string {
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as { endpoint?: unknown }
   if (!isPushEndpoint(body.endpoint)) {
-    return NextResponse.json({ error: "Missing or invalid push endpoint.", sent: 0 }, { status: 400 })
+    return NextResponse.json({ error: "Falta el endpoint de notificaciones o no es válido.", sent: 0 }, { status: 400 })
   }
   const endpoint = body.endpoint
 
   const lastTest = lastTestByEndpoint.get(endpoint)
   if (lastTest !== undefined && Date.now() - lastTest < TEST_COOLDOWN_MS) {
     return NextResponse.json(
-      { error: "Wait a few seconds before sending another test.", sent: 0 },
+      { error: "Esperá unos segundos antes de mandar otra prueba.", sent: 0 },
       { status: 429 }
     )
   }
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   const targets = (await loadSubscriptions()).filter((item) => item.endpoint === endpoint)
   if (targets.length === 0) {
     return NextResponse.json(
-      { error: "This device's subscription is not saved on the server yet. Tap Retry.", sent: 0 },
+      { error: "La suscripción de este dispositivo todavía no está guardada en el servidor. Tocá Reintentar.", sent: 0 },
       { status: 400 }
     )
   }
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
   const { sent, failures } = await sendToSubscriptions(
     targets,
-    { title: "Lazarski", body: "Test notification — push is working.", url: "/", tag: "test-push" },
+    { title: "Lazarski", body: "Notificación de prueba: los avisos funcionan.", url: "/", tag: "test-push" },
     { ttlSeconds: 60 * 60 }
   )
 
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: first
-          ? `${first.service} rejected the push${first.statusCode ? ` (${first.statusCode})` : ""}: ${first.message}`
-          : "Could not send test push",
+          ? `${first.service} rechazó la notificación${first.statusCode ? ` (${first.statusCode})` : ""}: ${first.message}`
+          : "No se pudo enviar la prueba",
         sent: 0,
       },
       { status: 502 }

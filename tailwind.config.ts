@@ -31,7 +31,9 @@ const config = {
   		},
   		fontFamily: {
   			sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
-  			serif: ["var(--font-serif)", "ui-serif", "Georgia", "serif"],
+  			mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
+  			// Design D has no serif: keep the class working, but render it with the sans face.
+  			serif: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
   		},
   		colors: {
   			border: "hsl(var(--border))",

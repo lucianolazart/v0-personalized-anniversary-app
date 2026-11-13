@@ -6,7 +6,7 @@ Cómo funciona:
 
 1. El celular (PWA instalada) registra `public/service-worker.js`, se suscribe con la clave VAPID pública y guarda la suscripción en Firestore (`pushSubscriptions`).
 2. El cron de `vercel.json` llama todos los días a `/api/movie-night/reminders` a las 13:00 UTC (10:00 en Argentina) y manda un aviso la víspera y otro el mismo día de cada movie night o plan.
-3. El botón **Send test** de la app llama a `/api/movie-night/test-push` y manda un push solo al dispositivo que lo tocó (como mucho una prueba cada 15 segundos por dispositivo).
+3. El botón **Enviar prueba** de la app llama a `/api/movie-night/test-push` y manda un push solo al dispositivo que lo tocó (como mucho una prueba cada 15 segundos por dispositivo).
 
 Variables de entorno (en Vercel → Settings → Environment Variables, nunca en el repo):
 

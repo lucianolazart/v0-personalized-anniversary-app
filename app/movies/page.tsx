@@ -1,8 +1,8 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Check, Film, LayoutGrid, List, Plus, Search, Star, Tv, Clock, RefreshCw } from "lucide-react"
-import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { Check, Film, LayoutGrid, List, Plus, Search, Star, Tv, Clock, RefreshCw, Play } from "lucide-react"
+import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, deleteField, type DocumentData, type UpdateData } from "firebase/firestore"
 import { db } from "../lib/firebase"
 import {
   AlertDialog,
@@ -30,7 +30,13 @@ import { Label } from "@/components/ui/label"
 import type { MediaWithId, NewMediaFormState } from "../types/media"
 import { MediaCard } from "../components/MediaCard"
 import { CoverPicker } from "../components/CoverPicker"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { WatchedOnOptions } from "../components/WatchedOnPicker"
+import { parseWatchedOn } from "../lib/watched-on"
+import { EpisodeTracker } from "../components/EpisodeTracker"
+import { useSeriesCheck } from "../hooks/useSeriesCheck"
+import { compareEpisodes, parseEpisodeRef, type SeriesInfo } from "../lib/episodes"
+import type { EpisodeRef } from "../types/media"
+import { IconButton, PageHeader } from "@/components/page-header"
 import { cn } from "@/lib/utils"
 
 const VIEW_KEY = "movies-view"
@@ -45,6 +51,7 @@ export default function MoviesPage() {
   const [saving, setSaving] = useState(false)
   const [editingMedia, setEditingMedia] = useState<MediaWithId | null>(null)
   const [deletingMedia, setDeletingMedia] = useState<MediaWithId | null>(null)
+  const [trackingId, setTrackingId] = useState<string | null>(null)
   const initialFormState: NewMediaFormState = {
     title: "",
     type: "pelicula",
@@ -69,6 +76,10 @@ export default function MoviesPage() {
           image: data.image,
           state: data.state,
           type: data.type,
+          tmdbId: typeof data.tmdbId === "number" ? data.tmdbId : undefined,
+          tmdbType: data.tmdbType === "movie" || data.tmdbType === "tv" ? data.tmdbType : undefined,
+          watchedOn: parseWatchedOn(data.watchedOn),
+          progress: parseEpisodeRef(data.progress),
         } as MediaWithId
       })
       
@@ -82,6 +93,11 @@ export default function MoviesPage() {
 
   const handleAddMedia = async () => {
     if (newMedia.title) {
+      // Firestore rejects undefined values, so the TMDB ids only go in when we have them.
+      const tmdb = {
+        ...(newMedia.tmdbId ? { tmdbId: newMedia.tmdbId, tmdbType: newMedia.tmdbType ?? null } : {}),
+        ...(newMedia.state === "watched" && newMedia.watchedOn ? { watchedOn: newMedia.watchedOn } : {}),
+      }
       try {
         setSaving(true)
         if (editingMedia) {
@@ -93,6 +109,7 @@ export default function MoviesPage() {
             year: newMedia.year,
             image: newMedia.image || "/placeholder.svg?height=450&width=300",
             state: newMedia.state,
+            ...tmdb,
           })
         } else {
           // Añadir nuevo media
@@ -103,6 +120,7 @@ export default function MoviesPage() {
             year: newMedia.year,
             image: newMedia.image || "/placeholder.svg?height=450&width=300",
             state: newMedia.state,
+            ...tmdb,
           })
         }
 
@@ -142,6 +160,9 @@ export default function MoviesPage() {
       year: media.year,
       image: media.image,
       state: media.state,
+      tmdbId: media.tmdbId,
+      tmdbType: media.tmdbType,
+      watchedOn: media.watchedOn,
     })
     setOpen(true)
     // Restaurar la posición del scroll después de un pequeño delay
@@ -149,6 +170,30 @@ export default function MoviesPage() {
       window.scrollTo(0, currentScroll)
     }, 0)
   }
+
+  const trackingMedia = trackingId ? mediaList.find((media) => media.id === trackingId) ?? null : null
+
+  // Saves "¿Por dónde van?" and moves the series between Viendo / Al día / Vista on its own.
+  const handleSaveProgress = async (media: MediaWithId, progress: EpisodeRef | null, info: SeriesInfo | null) => {
+    const updates: UpdateData<DocumentData> = { progress: progress ?? deleteField() }
+    if (info) {
+      updates.tmdbId = info.tmdbId
+      updates.tmdbType = "tv"
+    }
+    if (progress && info?.lastAired) {
+      const ended = info.status === "Ended" || info.status === "Canceled"
+      if (compareEpisodes(progress, info.lastAired) >= 0) updates.state = ended ? "watched" : "up-to-date"
+      else if (media.state !== "in-progress") updates.state = "in-progress"
+    }
+    try {
+      await updateDoc(doc(db, "peliculas", media.id), updates)
+    } catch (error) {
+      console.error("Error saving progress:", error)
+    }
+  }
+
+  // Series marked "Al día" go to "Por retomar" by themselves when a new episode is out.
+  useSeriesCheck(mediaList, loading)
 
   const handleDelete = async (media: MediaWithId) => {
     try {
@@ -162,7 +207,7 @@ export default function MoviesPage() {
 
   const [typeFilter, setTypeFilter] = useState<"all" | "movies" | "series">("all")
   const [stateFilter, setStateFilter] = useState<MediaWithId["state"] | "all">("all")
-  const [viewMode, setViewMode] = useState<ViewMode>("posters")
+  const [viewMode, setViewMode] = useState<ViewMode>("compact")
 
   useEffect(() => {
     const saved = window.localStorage.getItem(VIEW_KEY)
@@ -201,125 +246,113 @@ export default function MoviesPage() {
     return filtered
   }
 
-  const chipClass = (active: boolean) =>
-    cn(
-      "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5",
-      active
-        ? "bg-primary text-primary-foreground"
-        : "bg-card text-muted-foreground border border-border"
-    )
+  const stateFilters: Array<{ value: MediaWithId["state"] | "all"; label: string }> = [
+    { value: "all", label: "Todos" },
+    { value: "watched", label: "Vistas" },
+    { value: "in-progress", label: "Viendo" },
+    { value: "pending", label: "Por ver" },
+    { value: "up-to-date", label: "Al día" },
+    { value: "to-resume", label: "Por retomar" },
+  ]
+  const typeTabs: Array<{ value: "all" | "movies" | "series"; label: string }> = [
+    { value: "all", label: "Todo" },
+    { value: "movies", label: "Pelis" },
+    { value: "series", label: "Series" },
+  ]
 
   const filteredMedia = getFilteredMedia()
 
   return (
-    <div className="flex flex-col h-full bg-background text-foreground relative min-h-screen">
-      <header className="flex-none px-4 pt-12 pb-3 bg-background/90 backdrop-blur-md z-20 sticky top-0">
-        <div className="mb-3">
-          <div className="flex items-center gap-2 mb-3">
-            <h1 className="flex-1 text-3xl font-serif font-medium tracking-tight text-foreground">
-              Movies & Shows
-            </h1>
-            <div className="inline-flex rounded-md border border-border bg-card p-0.5">
-              <button
-                type="button"
-                onClick={() => handleViewMode("posters")}
-                className={cn(
-                  "h-8 w-8 inline-flex items-center justify-center rounded-sm transition-colors",
-                  viewMode === "posters"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                aria-label="Poster grid"
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md">
+        <PageHeader
+          title="Pelis y series"
+          actions={
+            <>
+              <IconButton
+                aria-label={showSearch ? "Cerrar búsqueda" : "Buscar"}
+                aria-pressed={showSearch}
+                onClick={() => {
+                  setShowSearch(!showSearch)
+                  if (showSearch) setSearchTerm("")
+                }}
               >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleViewMode("compact")}
-                className={cn(
-                  "h-8 w-8 inline-flex items-center justify-center rounded-sm transition-colors",
-                  viewMode === "compact"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                aria-label="Compact list"
+                <Search className="h-[18px] w-[18px]" />
+              </IconButton>
+              <IconButton
+                aria-label={viewMode === "posters" ? "Ver como lista" : "Ver como pósters"}
+                onClick={() => handleViewMode(viewMode === "posters" ? "compact" : "posters")}
               >
-                <List className="h-4 w-4" />
-              </button>
-            </div>
-            <button
-              onClick={() => {
-                setShowSearch(!showSearch)
-                if (showSearch) {
-                  setSearchTerm("")
-                }
-              }}
-              className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-accent transition-colors"
-              aria-label="Search"
-            >
-              <Search className="h-4 w-4" />
-            </button>
-            <ThemeToggle />
-          </div>
+                {viewMode === "posters" ? (
+                  <List className="h-[18px] w-[18px]" />
+                ) : (
+                  <LayoutGrid className="h-[18px] w-[18px]" />
+                )}
+              </IconButton>
+            </>
+          }
+        />
+        <div className="px-5 max-w-xl mx-auto">
           {showSearch && (
             <Input
-              placeholder="Search..."
+              placeholder="Buscar por título..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-9"
+              className="mt-2 h-10"
               autoFocus
             />
           )}
-        </div>
-        <div className="space-y-2">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            <button onClick={() => setTypeFilter("all")} className={chipClass(typeFilter === "all")}>
-              All
-            </button>
-            <button onClick={() => setTypeFilter("movies")} className={chipClass(typeFilter === "movies")}>
-              Movies
-            </button>
-            <button onClick={() => setTypeFilter("series")} className={chipClass(typeFilter === "series")}>
-              TV Shows
-            </button>
+          <div role="tablist" aria-label="Tipo" className="mt-3 flex gap-6 border-b border-border">
+            {typeTabs.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={typeFilter === tab.value}
+                onClick={() => setTypeFilter(tab.value)}
+                className={cn(
+                  "-mb-px h-10 border-b-2 text-[15px] transition-colors",
+                  typeFilter === tab.value
+                    ? "border-primary font-semibold text-foreground"
+                    : "border-transparent font-medium text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            <button onClick={() => setStateFilter("all")} className={chipClass(stateFilter === "all")}>
-              All Status
-            </button>
-            <button onClick={() => setStateFilter("watched")} className={chipClass(stateFilter === "watched")}>
-              <Check className="h-3 w-3" />
-              Watched
-            </button>
-            <button onClick={() => setStateFilter("in-progress")} className={chipClass(stateFilter === "in-progress")}>
-              <Clock className="h-3 w-3" />
-              Watching
-            </button>
-            <button onClick={() => setStateFilter("pending")} className={chipClass(stateFilter === "pending")}>
-              <Star className="h-3 w-3" />
-              Watchlist
-            </button>
-            <button onClick={() => setStateFilter("up-to-date")} className={chipClass(stateFilter === "up-to-date")}>
-              <RefreshCw className="h-3 w-3" />
-              Up to Date
-            </button>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide py-3 -mx-5 px-5">
+            {stateFilters.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                aria-pressed={stateFilter === filter.value}
+                onClick={() => setStateFilter(filter.value)}
+                className={cn(
+                  "h-8 shrink-0 whitespace-nowrap rounded-lg border px-3 text-[13px] transition-colors",
+                  stateFilter === filter.value
+                    ? "border-primary/30 bg-accent font-semibold text-accent-foreground"
+                    : "border-border bg-card font-medium text-foreground hover:bg-muted"
+                )}
+              >
+                {filter.label}
+              </button>
+            ))}
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className={cn("flex-1 overflow-y-auto pb-24 pt-2", viewMode === "posters" ? "px-3" : "px-4")}>
+      <main className={cn("pb-28 max-w-xl mx-auto", viewMode === "posters" ? "px-4 pt-1" : "px-5")}>
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-muted border-t-primary" />
+            <div className="animate-spin rounded-full h-7 w-7 border-2 border-muted border-t-primary" />
           </div>
         ) : filteredMedia.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-muted-foreground text-sm">
-              No items match the selected filters
-            </p>
+            <p className="text-muted-foreground text-sm">No hay nada con esos filtros</p>
           </div>
         ) : viewMode === "posters" ? (
-          <div className="grid grid-cols-3 gap-x-2 gap-y-4">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-5">
             {filteredMedia.map((media) => (
               <MediaCard
                 key={media.id}
@@ -327,6 +360,7 @@ export default function MoviesPage() {
                 variant="poster"
                 onEdit={handleEdit}
                 onDelete={(item) => setDeletingMedia(item)}
+                onTrack={(media) => setTrackingId(media.id)}
               />
             ))}
           </div>
@@ -339,48 +373,53 @@ export default function MoviesPage() {
                 variant="compact"
                 onEdit={handleEdit}
                 onDelete={(item) => setDeletingMedia(item)}
+                onTrack={(media) => setTrackingId(media.id)}
               />
             ))}
           </div>
         )}
       </main>
 
-      {/* Floating Add Button */}
       <Dialog open={open} onOpenChange={(isOpen) => isOpen ? handleOpenDialog() : handleCloseDialog()}>
         <DialogTrigger asChild>
-          <button className="fixed bottom-24 right-6 w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/30 flex items-center justify-center z-50 active:scale-95 transition-transform">
-            <Plus className="h-7 w-7" />
+          <button
+            aria-label="Agregar peli o serie"
+            className="fixed bottom-24 right-5 z-50 h-[52px] w-[52px] rounded-[14px] bg-foreground text-background flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+          >
+            <Plus className="h-6 w-6" />
           </button>
         </DialogTrigger>
           <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
-              <DialogTitle className="text-xl font-serif font-medium">
-                {editingMedia ? "Edit movie or show" : "Add new movie or show"}
+              <DialogTitle className="text-xl font-semibold tracking-tight">
+                {editingMedia ? "Editar peli o serie" : "Agregar peli o serie"}
               </DialogTitle>
               <DialogDescription>
                 {editingMedia 
-                  ? "Modify the details of the movie or show"
-                  : "Record what you've watched or are watching together"}
+                  ? "Cambiá los datos de la peli o serie"
+                  : "Anotá lo que vieron o están viendo juntos"}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-5 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <div className="col-span-3">
                   <Label htmlFor="title">
-                    Title
+                    Título
                   </Label>
                   <Input
                     id="title"
                     value={newMedia.title}
-                    onChange={(e) => setNewMedia({ ...newMedia, title: e.target.value })}
-                    placeholder="Enter movie or show title"
+                    onChange={(e) =>
+                      setNewMedia({ ...newMedia, title: e.target.value, tmdbId: undefined, tmdbType: undefined })
+                    }
+                    placeholder="Nombre de la peli o serie"
                     className="h-11 mt-2"
                     autoFocus={false}
                   />
                 </div>
                 <div>
                   <Label htmlFor="year">
-                    Year
+                    Año
                   </Label>
                   <Input
                     id="year"
@@ -405,21 +444,30 @@ export default function MoviesPage() {
                     year: result.year,
                     type: result.type,
                     image: result.image,
+                    tmdbId: result.tmdbId,
+                    tmdbType: result.tmdbType,
                   }))
                 }
               />
 
               <div>
-                <Label>Type</Label>
+                <Label>Tipo</Label>
                 <div className="flex mt-2 space-x-2">
                   <Button
                     type="button"
                     variant={newMedia.type === "pelicula" ? "default" : "outline"}
                     className="flex-1 h-11"
-                    onClick={() => setNewMedia({ ...newMedia, type: "pelicula" })}
+                    onClick={() =>
+                      setNewMedia({
+                        ...newMedia,
+                        type: "pelicula",
+                        // "Por retomar" only makes sense for series.
+                        state: newMedia.state === "to-resume" ? "pending" : newMedia.state,
+                      })
+                    }
                   >
                     <Film className="h-4 w-4 mr-2" />
-                    Movie
+                    Peli
                   </Button>
                   <Button
                     type="button"
@@ -428,13 +476,13 @@ export default function MoviesPage() {
                     onClick={() => setNewMedia({ ...newMedia, type: "serie" })}
                   >
                     <Tv className="h-4 w-4 mr-2" />
-                    TV Show
+                    Serie
                   </Button>
                 </div>
               </div>
 
               <div>
-                <Label>Status</Label>
+                <Label>Estado</Label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <Button
                     type="button"
@@ -443,7 +491,7 @@ export default function MoviesPage() {
                     onClick={() => setNewMedia({ ...newMedia, state: "watched" })}
                   >
                     <Check className="h-4 w-4 mr-2" />
-                    Watched
+                    Vista
                   </Button>
                   <Button
                     type="button"
@@ -452,7 +500,7 @@ export default function MoviesPage() {
                     onClick={() => setNewMedia({ ...newMedia, state: "in-progress" })}
                   >
                     <Clock className="h-4 w-4 mr-2" />
-                    Watching
+                    Viendo
                   </Button>
                   <Button
                     type="button"
@@ -461,7 +509,7 @@ export default function MoviesPage() {
                     onClick={() => setNewMedia({ ...newMedia, state: "pending" })}
                   >
                     <Star className="h-4 w-4 mr-2" />
-                    Watchlist
+                    Por ver
                   </Button>
                   <Button
                     type="button"
@@ -470,10 +518,37 @@ export default function MoviesPage() {
                     onClick={() => setNewMedia({ ...newMedia, state: "up-to-date" })}
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Up to Date
+                    Al día
                   </Button>
+                  {newMedia.type === "serie" && (
+                    <Button
+                      type="button"
+                      variant={newMedia.state === "to-resume" ? "default" : "outline"}
+                      className="w-full h-11 col-span-2"
+                      onClick={() => setNewMedia({ ...newMedia, state: "to-resume" })}
+                    >
+                      <Play className="h-4 w-4 mr-2" />
+                      Por retomar (salió otra temporada)
+                    </Button>
+                  )}
                 </div>
               </div>
+
+              {newMedia.state === "watched" && newMedia.title.trim().length >= 2 && (
+                <div>
+                  <Label>¿Dónde la vieron? (opcional)</Label>
+                  <div className="mt-2">
+                    <WatchedOnOptions
+                      title={newMedia.title}
+                      year={newMedia.year}
+                      type={newMedia.type}
+                      tmdbId={newMedia.tmdbId}
+                      value={newMedia.watchedOn}
+                      onPick={(watchedOn) => setNewMedia((prev) => ({ ...prev, watchedOn }))}
+                    />
+                  </div>
+                </div>
+              )}
 
             </div>
             <DialogFooter>
@@ -486,10 +561,10 @@ export default function MoviesPage() {
                 {saving ? (
                     <>
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Saving...
+                    Guardando...
                   </>
                 ) : (
-                  editingMedia ? "Save Changes" : "Save Media"
+                  editingMedia ? "Guardar cambios" : "Guardar"
                 )}
               </Button>
             </DialogFooter>
@@ -499,22 +574,24 @@ export default function MoviesPage() {
         <AlertDialog open={!!deletingMedia} onOpenChange={(open) => !open && setDeletingMedia(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle className="text-lg font-serif font-medium">Are you sure?</AlertDialogTitle>
+              <AlertDialogTitle className="text-lg font-semibold tracking-tight">¿Seguro?</AlertDialogTitle>
               <AlertDialogDescription className="text-muted-foreground">
-                This action cannot be undone. This will permanently delete {deletingMedia?.title} from your list.
+                Se va a borrar {deletingMedia?.title} de la lista. No se puede deshacer.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-border">Cancel</AlertDialogCancel>
+              <AlertDialogCancel className="border-border">Cancelar</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-red-500 hover:bg-red-600 text-white"
                 onClick={() => deletingMedia && handleDelete(deletingMedia)}
               >
-                Delete
+                Borrar
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <EpisodeTracker media={trackingMedia} onClose={() => setTrackingId(null)} onSave={handleSaveProgress} />
     </div>
   )
 }

@@ -8,7 +8,7 @@ const DEFAULT_SUBJECT = "mailto:lazarski@aniversario.app"
 
 export class VapidConfigError extends Error {
   constructor(missing: string[]) {
-    super(`Missing VAPID env vars on the server: ${missing.join(", ")}`)
+    super(`Faltan variables VAPID en el servidor: ${missing.join(", ")}`)
     this.name = "VapidConfigError"
   }
 }

@@ -1,15 +1,12 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Fraunces, Inter } from "next/font/google"
+import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { ThemeProvider } from "@/components/theme-provider"
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-serif",
-})
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata: Metadata = {
   title: "Lazarski",
@@ -34,8 +31,8 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F8F5F0' },
-    { media: '(prefers-color-scheme: dark)', color: '#0F0D0C' }
+    { media: '(prefers-color-scheme: light)', color: '#FAFAF9' },
+    { media: '(prefers-color-scheme: dark)', color: '#0C0A09' }
   ]
 }
 
@@ -51,7 +48,7 @@ export default function RootLayout({
         {/* Next only emits mobile-web-app-capable for appleWebApp.capable; iOS still reads this one. */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
-      <body className={`${inter.variable} ${fraunces.variable} font-sans`}>
+      <body className={`${geist.variable} ${geistMono.variable} font-sans`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <div className="flex flex-col min-h-screen">
             <main className="flex-1 pb-20">{children}</main>

@@ -1,5 +1,6 @@
+import type { DocumentData } from "firebase/firestore"
 import type { Plan } from "../types/plans"
-import { addDays, startOfToday } from "./dates"
+import { addDays, startOfToday, toFirestoreDate } from "./dates"
 
 export const categoryEmojis: Record<Plan["category"], string> = {
   gastronomia: "🍽️",
@@ -10,11 +11,33 @@ export const categoryEmojis: Record<Plan["category"], string> = {
 }
 
 export const categoryNames: Record<Plan["category"], string> = {
-  gastronomia: "Dining",
-  aire_libre: "Outdoor",
-  entretenimiento: "Entertainment",
-  educativo: "Educational",
-  otros: "Other",
+  gastronomia: "Gastronomía",
+  aire_libre: "Aire libre",
+  entretenimiento: "Entretenimiento",
+  educativo: "Educativo",
+  otros: "Otros",
+}
+
+/** Maps a `planes` document to a Plan, converting Timestamps and dropping empty optional fields. */
+export function planFromDoc(id: string, data: DocumentData): Plan {
+  return {
+    ...(data as Omit<Plan, "id">),
+    id,
+    date: toFirestoreDate(data.date) ?? undefined,
+    completedAt: toFirestoreDate(data.completedAt) ?? undefined,
+    location: typeof data.location === "string" && data.location.trim() ? data.location.trim() : undefined,
+  }
+}
+
+export function isLink(value: string) {
+  return /^https?:\/\//i.test(value.trim())
+}
+
+/** A Maps link opens as is; an address opens Google Maps directions to it. */
+export function directionsUrl(location: string) {
+  const value = location.trim()
+  if (isLink(value)) return value
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(value)}`
 }
 
 export function nextActivePlan(plans: Plan[], from = startOfToday()) {
@@ -32,21 +55,17 @@ export function groupActivePlans(plans: Plan[]) {
     .filter((plan) => plan.date)
     .sort((a, b) => (a.date?.getTime() ?? 0) - (b.date?.getTime() ?? 0))
 
+  // Dated plans already in the past that nobody marked as done: ask what happened.
+  const overdue = dated
+    .filter((plan) => plan.date && plan.date < today)
+    .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))
+
   const upcoming = dated.filter((plan) => plan.date && plan.date >= today)
   const highlight = upcoming[0] ?? null
+  const rest = upcoming.filter((plan) => plan.id !== highlight?.id)
 
-  const thisWeek = dated.filter(
-    (plan) =>
-      plan.id !== highlight?.id &&
-      plan.date &&
-      plan.date < weekEnd
-  )
-  const later = dated.filter(
-    (plan) =>
-      plan.id !== highlight?.id &&
-      plan.date &&
-      plan.date >= weekEnd
-  )
+  const thisWeek = rest.filter((plan) => plan.date && plan.date < weekEnd)
+  const later = rest.filter((plan) => plan.date && plan.date >= weekEnd)
 
-  return { highlight, thisWeek, later, ideas }
+  return { overdue, highlight, thisWeek, later, ideas }
 }

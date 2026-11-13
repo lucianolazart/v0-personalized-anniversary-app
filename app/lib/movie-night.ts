@@ -13,6 +13,7 @@ export async function findOrCreateMovie(params: {
   title: string
   year: number
   image: string
+  tmdbId?: number
 }): Promise<string> {
   const match = params.catalog.find(
     (item) =>
@@ -22,8 +23,14 @@ export async function findOrCreateMovie(params: {
   )
 
   if (match) {
-    if (match.state !== "in-progress") {
-      await updateDoc(doc(db, "peliculas", match.id), { state: "pending" })
+    const updates: Record<string, string | number> = {}
+    if (match.state !== "in-progress") updates.state = "pending"
+    if (params.tmdbId && !match.tmdbId) {
+      updates.tmdbId = params.tmdbId
+      updates.tmdbType = "movie"
+    }
+    if (Object.keys(updates).length > 0) {
+      await updateDoc(doc(db, "peliculas", match.id), updates)
     }
     return match.id
   }
@@ -34,6 +41,7 @@ export async function findOrCreateMovie(params: {
     image: params.image,
     type: "pelicula",
     state: "pending",
+    ...(params.tmdbId ? { tmdbId: params.tmdbId, tmdbType: "movie" } : {}),
   })
   return created.id
 }
@@ -42,7 +50,6 @@ export {
   parseLocalDate,
   toInputDate,
   startOfToday,
-  formatDisplayDate as formatNightDate,
 } from "./dates"
 
 export function nextScheduledNight(nights: MovieNight[], from = startOfToday()) {

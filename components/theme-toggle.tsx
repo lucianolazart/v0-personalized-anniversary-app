@@ -3,6 +3,7 @@
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
+import { IconButton } from "@/components/page-header"
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
@@ -13,19 +14,17 @@ export function ThemeToggle() {
   }, [])
 
   if (!mounted) {
-    return <div className="h-9 w-9 rounded-md border border-border" aria-hidden />
+    return <div className="h-10 w-10 rounded-[10px] border border-border" aria-hidden />
   }
 
   const isDark = resolvedTheme === "dark"
 
   return (
-    <button
-      type="button"
+    <IconButton
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-accent transition-colors"
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
     >
-      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-    </button>
+      {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+    </IconButton>
   )
 }

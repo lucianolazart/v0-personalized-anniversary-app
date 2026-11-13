@@ -2,50 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design D ("Minimal"): near-white and ink, hairlines instead of shadows, orange only where it matters
+   plus a soft orange tint (--accent) for highlighted areas. */
 @layer base {
   :root {
-    --background: 40 20% 97%;
-    --foreground: 24 12% 10%;
-    --card: 40 25% 99%;
-    --card-foreground: 24 12% 10%;
-    --popover: 40 25% 99%;
-    --popover-foreground: 24 12% 10%;
-    --primary: 28 72% 48%;
-    --primary-foreground: 40 30% 98%;
-    --secondary: 36 16% 93%;
-    --secondary-foreground: 24 12% 14%;
-    --muted: 36 14% 93%;
-    --muted-foreground: 24 8% 42%;
-    --accent: 32 40% 92%;
-    --accent-foreground: 28 50% 24%;
-    --destructive: 0 72% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 32 12% 86%;
-    --input: 32 12% 86%;
-    --ring: 28 72% 48%;
-    --radius: 0.5rem;
+    --background: 60 9% 98%;
+    --foreground: 24 10% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 10% 4%;
+    --primary: 17 88% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 60 5% 96%;
+    --secondary-foreground: 24 10% 10%;
+    --muted: 60 5% 96%;
+    --muted-foreground: 25 5% 32%;
+    --accent: 24 100% 96%;
+    --accent-foreground: 15 79% 34%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 20 6% 90%;
+    --input: 20 6% 90%;
+    --ring: 17 88% 40%;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 24 10% 5%;
-    --foreground: 36 20% 96%;
-    --card: 24 8% 9%;
-    --card-foreground: 36 20% 96%;
-    --popover: 24 8% 9%;
-    --popover-foreground: 36 20% 96%;
-    --primary: 28 78% 55%;
-    --primary-foreground: 24 20% 8%;
-    --secondary: 24 8% 14%;
-    --secondary-foreground: 36 16% 92%;
-    --muted: 24 8% 14%;
-    --muted-foreground: 30 10% 62%;
-    --accent: 28 22% 16%;
-    --accent-foreground: 36 20% 96%;
-    --destructive: 0 62% 42%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 24 8% 16%;
-    --input: 24 8% 16%;
-    --ring: 28 78% 55%;
+    --background: 24 10% 4%;
+    --foreground: 60 5% 96%;
+    --card: 24 10% 9%;
+    --card-foreground: 60 5% 96%;
+    --popover: 24 10% 9%;
+    --popover-foreground: 60 5% 96%;
+    --primary: 25 95% 53%;
+    --primary-foreground: 24 10% 4%;
+    --secondary: 12 6% 15%;
+    --secondary-foreground: 60 5% 96%;
+    --muted: 12 6% 15%;
+    --muted-foreground: 24 5% 64%;
+    --accent: 22 45% 11%;
+    --accent-foreground: 31 97% 72%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 12 6% 16%;
+    --input: 12 6% 16%;
+    --ring: 25 95% 53%;
   }
 }
 
@@ -59,8 +61,12 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  h1, h2, .font-serif {
-    font-family: var(--font-serif), ui-serif, Georgia, serif;
+}
+
+@layer components {
+  /* Small uppercase monospace label used above sections ("PRÓXIMO", "IDEAS · 9"). */
+  .label-mono {
+    @apply font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground;
   }
 }
 

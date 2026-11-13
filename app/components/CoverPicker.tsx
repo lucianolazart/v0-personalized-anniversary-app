@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import type { TmdbPoster, TmdbSearchResult } from "../types/tmdb"
 import { parseTmdbLang, TMDB_LANG_KEY, type TmdbLang } from "../lib/tmdb"
 import { cn } from "@/lib/utils"
+import { WatchProviders } from "./WatchProviders"
 
 interface CoverPickerProps {
   query: string
@@ -19,6 +20,8 @@ interface CoverPickerProps {
     year: number
     type: "pelicula" | "serie"
     image: string
+    tmdbId: number
+    tmdbType: "movie" | "tv"
   }) => void
 }
 
@@ -133,6 +136,8 @@ export function CoverPicker({
       year: result.year,
       type: result.type,
       image: result.posterUrl,
+      tmdbId: result.id,
+      tmdbType: result.mediaType,
     })
     void loadPosters(result)
   }
@@ -149,7 +154,7 @@ export function CoverPicker({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <Label>Cover</Label>
+        <Label>Portada</Label>
         <div className="inline-flex rounded-md border border-border bg-card p-0.5">
           <button
             type="button"
@@ -158,7 +163,7 @@ export function CoverPicker({
               "h-8 w-9 rounded-sm text-base leading-none",
               lang === "en-US" ? "bg-primary/20" : "opacity-60 hover:opacity-100"
             )}
-            aria-label="Search titles in English"
+            aria-label="Buscar títulos en inglés"
           >
             🇬🇧
           </button>
@@ -181,15 +186,15 @@ export function CoverPicker({
           <div className="relative shrink-0 w-16 h-24 rounded-lg overflow-hidden bg-muted border border-border">
             <img
               src={image}
-              alt="Cover preview"
+              alt="Vista previa de la portada"
               className="w-full h-full object-cover"
             />
           </div>
-          <p className="text-xs text-muted-foreground">Cover selected</p>
+          <p className="text-xs text-muted-foreground">Portada elegida</p>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Type a title, pick the movie or show, then choose a poster.
+          Escribí un título, elegí la peli o serie y después una portada.
         </p>
       )}
 
@@ -197,7 +202,7 @@ export function CoverPicker({
         <>
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium truncate">
-              Posters for {picked?.title}
+              Portadas de {picked?.title}
             </p>
             <Button
               type="button"
@@ -207,14 +212,24 @@ export function CoverPicker({
               onClick={handleBackToSearch}
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
-              Back
+              Volver
             </Button>
           </div>
+
+          {picked && (
+            <WatchProviders
+              key={`${picked.mediaType}-${picked.id}`}
+              title={picked.title}
+              year={picked.year}
+              type={picked.type}
+              tmdbId={picked.id}
+            />
+          )}
 
           {postersLoading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading more posters...
+              Cargando más portadas...
             </div>
           )}
 
@@ -238,7 +253,7 @@ export function CoverPicker({
                   >
                     <img
                       src={poster.url}
-                      alt={picked?.title ?? "Poster"}
+                      alt={picked?.title ?? "Portada"}
                       className="w-full h-full object-cover"
                     />
                   </button>
@@ -252,7 +267,7 @@ export function CoverPicker({
           {loading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Searching...
+              Buscando...
             </div>
           )}
 
@@ -260,7 +275,7 @@ export function CoverPicker({
 
           {!loading && query.trim().length >= 2 && results.length === 0 && !error && (
             <p className="text-sm text-muted-foreground">
-              No titles found. You can paste an image URL below.
+              No encontramos títulos. Podés pegar el link de una imagen abajo.
             </p>
           )}
 
@@ -291,7 +306,7 @@ export function CoverPicker({
 
       <div>
         <Label htmlFor="image">
-          Or paste image URL
+          O pegá el link de una imagen
         </Label>
         <Input
           id="image"
@@ -303,7 +318,7 @@ export function CoverPicker({
       </div>
 
       <p className="text-[10px] text-muted-foreground">
-        This product uses the TMDB API but is not endorsed or certified by TMDB.
+        Este producto usa la API de TMDB, pero TMDB no lo respalda ni lo certifica.
       </p>
     </div>
   )
