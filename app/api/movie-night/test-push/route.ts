@@ -1,58 +1,58 @@
-import { NextResponse } from "next/server"
-import webpush from "web-push"
-import { collection, deleteDoc, doc, getDocs } from "firebase/firestore"
-import { db } from "@/app/lib/firebase"
-import { VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT } from "@/app/lib/vapid"
+import { NextRequest, NextResponse } from "next/server"
+import { ensureVapid, loadSubscriptions, sendToSubscriptions } from "@/app/lib/push-server"
+import { VapidConfigError } from "@/app/lib/vapid"
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+export const dynamic = "force-dynamic"
 
-export async function POST() {
-  const subsSnap = await getDocs(collection(db, "pushSubscriptions"))
-  if (subsSnap.empty) {
+// Sends a test notification. With { endpoint } in the body it only targets that device
+// (the phone that pressed "Send test"); without it, every saved subscription.
+export async function POST(request: NextRequest) {
+  try {
+    ensureVapid()
+  } catch (error) {
+    if (error instanceof VapidConfigError) {
+      return NextResponse.json({ error: error.message, sent: 0 }, { status: 500 })
+    }
+    throw error
+  }
+
+  const body = (await request.json().catch(() => ({}))) as { endpoint?: string }
+  const all = await loadSubscriptions()
+  const targets = body.endpoint ? all.filter((item) => item.endpoint === body.endpoint) : all
+
+  if (targets.length === 0) {
     return NextResponse.json(
-      { error: "No push subscriptions saved yet. Enable reminders first.", sent: 0 },
+      {
+        error: body.endpoint
+          ? "This device's subscription is not saved on the server yet. Tap Retry."
+          : "No push subscriptions saved yet. Enable reminders first.",
+        sent: 0,
+        subscribers: all.length,
+      },
       { status: 400 }
     )
   }
 
-  const payload = JSON.stringify({
-    title: "Lazarski",
-    body: "Test notification — push is working.",
-    url: "/",
-  })
-
-  let sent = 0
-  const errors: string[] = []
-
-  for (const subDoc of subsSnap.docs) {
-    const data = subDoc.data()
-    const subscription = {
-      endpoint: data.endpoint as string,
-      keys: {
-        p256dh: data.keys?.p256dh as string,
-        auth: data.keys?.auth as string,
-      },
-    }
-
-    try {
-      await webpush.sendNotification(subscription, payload)
-      sent += 1
-    } catch (error) {
-      const statusCode = (error as { statusCode?: number }).statusCode
-      const message = error instanceof Error ? error.message : "send failed"
-      errors.push(message)
-      if (statusCode === 404 || statusCode === 410) {
-        await deleteDoc(doc(db, "pushSubscriptions", subDoc.id))
-      }
-    }
-  }
+  const { sent, failures } = await sendToSubscriptions(
+    targets,
+    { title: "Lazarski", body: "Test notification — push is working.", url: "/", tag: "test-push" },
+    { ttlSeconds: 60 * 60 }
+  )
 
   if (sent === 0) {
+    const first = failures[0]
     return NextResponse.json(
-      { error: errors[0] || "Could not send test push", sent: 0, subscribers: subsSnap.size },
-      { status: 500 }
+      {
+        error: first
+          ? `${first.service} rejected the push${first.statusCode ? ` (${first.statusCode})` : ""}: ${first.message}`
+          : "Could not send test push",
+        sent: 0,
+        subscribers: all.length,
+        failures,
+      },
+      { status: 502 }
     )
   }
 
-  return NextResponse.json({ sent, subscribers: subsSnap.size })
+  return NextResponse.json({ sent, subscribers: all.length, failures })
 }

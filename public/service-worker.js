@@ -1,14 +1,18 @@
-const CACHE_NAME = "lazarski-v4"
+// Bump CACHE_NAME whenever this file changes so installed PWAs pick up the new worker.
+const CACHE_NAME = "lazarski-v5"
 const urlsToCache = [
   "/manifest.json",
   "/icons/icon-192x192.png",
-  "/icons/icon-384x384.png",
   "/icons/icon-512x512.png",
 ]
 
 self.addEventListener("install", (event) => {
+  // Precache file by file and ignore failures: with cache.addAll a single 404 rejects the
+  // whole install, the worker never activates and push subscriptions can never be created.
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => Promise.all(urlsToCache.map((url) => cache.add(url).catch(() => undefined))))
   )
   self.skipWaiting()
 })
@@ -59,6 +63,7 @@ self.addEventListener("push", (event) => {
       body: data.body,
       icon: "/icons/icon-192x192.png",
       badge: "/icons/icon-192x192.png",
+      tag: data.tag,
       data: { url: data.url || "/movie-night" },
     })
   )

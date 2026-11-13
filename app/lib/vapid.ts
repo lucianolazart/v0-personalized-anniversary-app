@@ -1,6 +1,29 @@
-export { VAPID_PUBLIC_KEY } from "./vapid-public"
+// Server-only VAPID config. Never hardcode the private key here: it lives in the hosting
+// env vars (VAPID_PRIVATE_KEY) next to NEXT_PUBLIC_VAPID_PUBLIC_KEY.
+import { VAPID_PUBLIC_KEY } from "./vapid-public"
 
-export const VAPID_PRIVATE_KEY =
-  process.env.VAPID_PRIVATE_KEY || "fi7AO0M89EJ2HvDvCFTg8wDw-ZFygBgkabvQvVtxZSk"
+export { VAPID_PUBLIC_KEY }
 
-export const VAPID_SUBJECT = "mailto:lazarski@aniversario.app"
+const DEFAULT_SUBJECT = "mailto:lazarski@aniversario.app"
+
+export class VapidConfigError extends Error {
+  constructor(missing: string[]) {
+    super(`Missing VAPID env vars on the server: ${missing.join(", ")}`)
+    this.name = "VapidConfigError"
+  }
+}
+
+export function getVapidConfig() {
+  const publicKey = VAPID_PUBLIC_KEY
+  const privateKey = (process.env.VAPID_PRIVATE_KEY ?? "").trim()
+  const subject = (process.env.VAPID_SUBJECT ?? "").trim() || DEFAULT_SUBJECT
+
+  const missing: string[] = []
+  if (!publicKey) missing.push("NEXT_PUBLIC_VAPID_PUBLIC_KEY")
+  if (!privateKey) missing.push("VAPID_PRIVATE_KEY")
+  if (missing.length > 0) {
+    throw new VapidConfigError(missing)
+  }
+
+  return { publicKey, privateKey, subject }
+}

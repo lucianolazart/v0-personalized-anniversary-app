@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
-import webpush from "web-push"
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  updateDoc,
-} from "firebase/firestore"
+import { collection, doc, getDocs, updateDoc } from "firebase/firestore"
 import { db } from "@/app/lib/firebase"
-import { VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT } from "@/app/lib/vapid"
 import { categoryEmojis } from "@/app/lib/plans"
+import {
+  ensureVapid,
+  loadSubscriptions,
+  sendToSubscriptions,
+  type PushFailure,
+  type PushMessage,
+} from "@/app/lib/push-server"
+import { VapidConfigError } from "@/app/lib/vapid"
 import type { Plan } from "@/app/types/plans"
 
-const ARGENTINA_TZ = "America/Argentina/Buenos_Aires"
+// Called once a day by the Vercel cron in vercel.json (13:00 UTC = 10:00 in Argentina).
+export const dynamic = "force-dynamic"
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+const ARGENTINA_TZ = "America/Argentina/Buenos_Aires"
+const REMINDER_TTL_SECONDS = 60 * 60 * 12
 
 function argentinaYmd(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: ARGENTINA_TZ }).format(date)
@@ -25,49 +27,52 @@ function addDays(ymd: string, days: number) {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
 }
 
-function firestoreYmd(value: { toDate?: () => Date } | Date | null | undefined) {
+function firestoreYmd(value: unknown) {
   if (!value) return null
-  const date = typeof (value as { toDate?: () => Date }).toDate === "function"
-    ? (value as { toDate: () => Date }).toDate()
-    : (value as Date)
+  const date =
+    typeof (value as { toDate?: () => Date }).toDate === "function"
+      ? (value as { toDate: () => Date }).toDate()
+      : new Date(value as string | number | Date)
+  if (Number.isNaN(date.getTime())) return null
   return argentinaYmd(date)
 }
 
 function isAuthorized(request: NextRequest) {
-  if (request.headers.get("x-vercel-cron") === "1") return true
+  // When CRON_SECRET is set, Vercel sends it as "Authorization: Bearer <secret>" on cron calls.
   const secret = process.env.CRON_SECRET
   if (!secret) return true
   return request.headers.get("authorization") === `Bearer ${secret}`
 }
 
-type PushMessage = { title: string; body: string; url: string }
 type RemindersSent = { eve?: string; day?: string }
 
-function collectDueReminders(params: {
-  dateYmd: string | null
+type DueReminder = {
+  collectionName: "movieNights" | "planes"
+  docId: string
+  kind: keyof RemindersSent
+  dateYmd: string
+  message: PushMessage
+}
+
+function dueReminders(params: {
+  collectionName: DueReminder["collectionName"]
+  docId: string
+  dateYmd: string
   remindersSent: RemindersSent
   today: string
   tomorrow: string
-  eve: { title: string; body: string; url: string }
-  day: { title: string; body: string; url: string }
-}) {
-  const messages: PushMessage[] = []
-  const updates: RemindersSent = { ...params.remindersSent }
-  let changed = false
-
+  eve: PushMessage
+  day: PushMessage
+}): DueReminder[] {
+  const base = { collectionName: params.collectionName, docId: params.docId, dateYmd: params.dateYmd }
+  const due: DueReminder[] = []
   if (params.dateYmd === params.tomorrow && params.remindersSent.eve !== params.dateYmd) {
-    messages.push(params.eve)
-    updates.eve = params.dateYmd
-    changed = true
+    due.push({ ...base, kind: "eve", message: params.eve })
   }
-
   if (params.dateYmd === params.today && params.remindersSent.day !== params.dateYmd) {
-    messages.push(params.day)
-    updates.day = params.dateYmd
-    changed = true
+    due.push({ ...base, kind: "day", message: params.day })
   }
-
-  return { messages, updates, changed }
+  return due
 }
 
 export async function GET(request: NextRequest) {
@@ -75,16 +80,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  try {
+    ensureVapid()
+  } catch (error) {
+    if (error instanceof VapidConfigError) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    throw error
+  }
+
   const today = argentinaYmd()
   const tomorrow = addDays(today, 1)
 
-  const [nightsSnap, plansSnap, subsSnap] = await Promise.all([
+  const [nightsSnap, plansSnap, subscriptions] = await Promise.all([
     getDocs(collection(db, "movieNights")),
     getDocs(collection(db, "planes")),
-    getDocs(collection(db, "pushSubscriptions")),
+    loadSubscriptions(),
   ])
 
-  const messages: PushMessage[] = []
+  const due: DueReminder[] = []
 
   for (const item of nightsSnap.docs) {
     const data = item.data()
@@ -92,28 +106,28 @@ export async function GET(request: NextRequest) {
     const dateYmd = firestoreYmd(data.date)
     if (!dateYmd) continue
 
-    const remindersSent = (data.remindersSent ?? {}) as RemindersSent
-    const result = collectDueReminders({
-      dateYmd,
-      remindersSent,
-      today,
-      tomorrow,
-      eve: {
-        title: "🍿 Movie Night tomorrow",
-        body: `Tomorrow you watch ${data.title}`,
-        url: "/movie-night",
-      },
-      day: {
-        title: "🍿 Movie Night today",
-        body: `Tonight you watch ${data.title}`,
-        url: "/movie-night",
-      },
-    })
-
-    messages.push(...result.messages)
-    if (result.changed) {
-      await updateDoc(doc(db, "movieNights", item.id), { remindersSent: result.updates })
-    }
+    due.push(
+      ...dueReminders({
+        collectionName: "movieNights",
+        docId: item.id,
+        dateYmd,
+        remindersSent: (data.remindersSent ?? {}) as RemindersSent,
+        today,
+        tomorrow,
+        eve: {
+          title: "🍿 Movie Night tomorrow",
+          body: `Tomorrow you watch ${data.title}`,
+          url: "/movie-night",
+          tag: `movie-night-${item.id}-eve`,
+        },
+        day: {
+          title: "🍿 Movie Night today",
+          body: `Tonight you watch ${data.title}`,
+          url: "/movie-night",
+          tag: `movie-night-${item.id}-day`,
+        },
+      })
+    )
   }
 
   for (const item of plansSnap.docs) {
@@ -122,67 +136,62 @@ export async function GET(request: NextRequest) {
     const dateYmd = firestoreYmd(data.date)
     if (!dateYmd) continue
 
-    const category = data.category as Plan["category"]
-    const emoji = categoryEmojis[category] ?? "📅"
-    const remindersSent = (data.remindersSent ?? {}) as RemindersSent
-    const result = collectDueReminders({
-      dateYmd,
-      remindersSent,
-      today,
-      tomorrow,
-      eve: {
-        title: `${emoji} Tomorrow: ${data.title}`,
-        body: `Tomorrow: ${data.title}`,
-        url: "/plans",
-      },
-      day: {
-        title: `${emoji} Today: ${data.title}`,
-        body: `Today: ${data.title}`,
-        url: "/plans",
-      },
+    const emoji = categoryEmojis[data.category as Plan["category"]] ?? "📅"
+    due.push(
+      ...dueReminders({
+        collectionName: "planes",
+        docId: item.id,
+        dateYmd,
+        remindersSent: (data.remindersSent ?? {}) as RemindersSent,
+        today,
+        tomorrow,
+        eve: {
+          title: `${emoji} Tomorrow: ${data.title}`,
+          body: `Tomorrow: ${data.title}`,
+          url: "/plans",
+          tag: `plan-${item.id}-eve`,
+        },
+        day: {
+          title: `${emoji} Today: ${data.title}`,
+          body: `Today: ${data.title}`,
+          url: "/plans",
+          tag: `plan-${item.id}-day`,
+        },
+      })
+    )
+  }
+
+  const summary = {
+    today,
+    due: due.length,
+    subscribers: subscriptions.length,
+    sent: 0,
+    delivered: 0,
+    failures: [] as PushFailure[],
+  }
+
+  // Without subscribers nothing is marked as sent, so the reminder still goes out once
+  // someone subscribes (if it is still the same day).
+  if (due.length === 0 || subscriptions.length === 0) {
+    return NextResponse.json(summary)
+  }
+
+  for (const reminder of due) {
+    if (subscriptions.length === 0) break
+    const result = await sendToSubscriptions(subscriptions, reminder.message, {
+      ttlSeconds: REMINDER_TTL_SECONDS,
     })
+    summary.sent += result.sent
+    summary.failures.push(...result.failures)
 
-    messages.push(...result.messages)
-    if (result.changed) {
-      await updateDoc(doc(db, "planes", item.id), { remindersSent: result.updates })
+    // Only mark the reminder as sent once at least one device accepted it.
+    if (result.sent > 0) {
+      summary.delivered += 1
+      await updateDoc(doc(db, reminder.collectionName, reminder.docId), {
+        [`remindersSent.${reminder.kind}`]: reminder.dateYmd,
+      })
     }
   }
 
-  if (messages.length === 0 || subsSnap.empty) {
-    return NextResponse.json({ sent: 0, messages: messages.length, subscribers: subsSnap.size })
-  }
-
-  let sent = 0
-  for (const subDoc of subsSnap.docs) {
-    const data = subDoc.data()
-    const subscription = {
-      endpoint: data.endpoint as string,
-      keys: {
-        p256dh: data.keys?.p256dh as string,
-        auth: data.keys?.auth as string,
-      },
-    }
-
-    for (const message of messages) {
-      try {
-        await webpush.sendNotification(
-          subscription,
-          JSON.stringify({
-            title: message.title,
-            body: message.body,
-            url: message.url,
-          })
-        )
-        sent += 1
-      } catch (error) {
-        const statusCode = (error as { statusCode?: number }).statusCode
-        if (statusCode === 404 || statusCode === 410) {
-          await deleteDoc(doc(db, "pushSubscriptions", subDoc.id))
-          break
-        }
-      }
-    }
-  }
-
-  return NextResponse.json({ sent, messages: messages.length, subscribers: subsSnap.size })
+  return NextResponse.json(summary)
 }

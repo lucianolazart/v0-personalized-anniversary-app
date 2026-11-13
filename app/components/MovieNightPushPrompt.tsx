@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react"
 import { Bell, BellOff, BellRing } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { enableMovieNightPush, notificationSupport, sendTestPush } from "../lib/push"
+import {
+  PushSetupError,
+  enableMovieNightPush,
+  notificationSupport,
+  pushErrorMessage,
+  sendTestPush,
+} from "../lib/push"
 
 type PushRemindersPromptProps = {
   heading?: string
@@ -20,13 +26,18 @@ export function MovieNightPushPrompt({
   const [busy, setBusy] = useState(false)
   const [testBusy, setTestBusy] = useState(false)
   const [testMessage, setTestMessage] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const current = notificationSupport()
     if (current === "granted") {
+      // Re-saves this device's subscription every time the app opens.
       void enableMovieNightPush()
         .then(() => setStatus("granted"))
-        .catch(() => setStatus("error"))
+        .catch((error) => {
+          setErrorMessage(pushErrorMessage(error))
+          setStatus("error")
+        })
       return
     }
     setStatus(current)
@@ -35,13 +46,15 @@ export function MovieNightPushPrompt({
   const handleEnable = async () => {
     setBusy(true)
     setTestMessage(null)
+    setErrorMessage(null)
     try {
       await enableMovieNightPush()
       setStatus("granted")
     } catch (error) {
-      if (error instanceof Error && error.message === "denied") {
+      if (error instanceof PushSetupError && error.code === "denied") {
         setStatus("denied")
       } else {
+        setErrorMessage(pushErrorMessage(error))
         setStatus("error")
       }
     } finally {
@@ -55,17 +68,34 @@ export function MovieNightPushPrompt({
     try {
       const result = await sendTestPush()
       setStatus("granted")
+      setErrorMessage(null)
       setTestMessage(result.sent ? "Test sent — check your notifications." : "Nothing was sent.")
-    } catch {
-      setStatus("error")
-      setTestMessage("Could not send a test. On iPhone, open the app from the Home Screen.")
+    } catch (error) {
+      setTestMessage(pushErrorMessage(error))
     } finally {
       setTestBusy(false)
     }
   }
 
-  if (status === "loading" || status === "unsupported") {
+  if (status === "loading") {
     return null
+  }
+
+  if (status === "unsupported") {
+    return (
+      <div className="rounded-md border border-border bg-card px-3 py-3 flex items-start gap-3">
+        <div className="mt-0.5 text-muted-foreground">
+          <BellOff className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{heading}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Notifications are not available here. On iPhone (iOS 16.4+), tap Share → Add to Home
+            Screen and open the app from that icon.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -92,7 +122,7 @@ export function MovieNightPushPrompt({
         )}
         {status === "error" && (
           <p className="text-xs text-muted-foreground mt-0.5">
-            Could not enable alerts. On iPhone, add the app to the Home Screen first.
+            {errorMessage ?? "Could not enable alerts. On iPhone, add the app to the Home Screen first."}
           </p>
         )}
         {testMessage && (

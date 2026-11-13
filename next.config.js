@@ -2,11 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   async rewrites() {
+    // The service worker is served straight from public/service-worker.js.
     return [
-      {
-        source: '/service-worker.js',
-        destination: '/api/service-worker',
-      },
       {
         source: '/manifest.json',
         destination: '/api/manifest',
