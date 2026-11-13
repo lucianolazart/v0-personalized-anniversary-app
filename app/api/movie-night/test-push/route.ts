@@ -4,9 +4,26 @@ import { VapidConfigError } from "@/app/lib/vapid"
 
 export const dynamic = "force-dynamic"
 
-// Sends a test notification. With { endpoint } in the body it only targets that device
-// (the phone that pressed "Send test"); without it, every saved subscription.
+function isPushEndpoint(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 2048) return false
+  try {
+    return new URL(value).protocol === "https:"
+  } catch {
+    return false
+  }
+}
+
+// Sends a test notification to exactly one device: the one whose push endpoint is in the
+// body (the phone that pressed "Send test"). The endpoint is an unguessable URL that only
+// that device knows, so callers can only reach their own device. There is deliberately no
+// "send to everyone" mode, and the response never reveals how many devices are subscribed.
 export async function POST(request: NextRequest) {
+  const body = (await request.json().catch(() => ({}))) as { endpoint?: unknown }
+  if (!isPushEndpoint(body.endpoint)) {
+    return NextResponse.json({ error: "Missing or invalid push endpoint.", sent: 0 }, { status: 400 })
+  }
+  const endpoint = body.endpoint
+
   try {
     ensureVapid()
   } catch (error) {
@@ -16,19 +33,10 @@ export async function POST(request: NextRequest) {
     throw error
   }
 
-  const body = (await request.json().catch(() => ({}))) as { endpoint?: string }
-  const all = await loadSubscriptions()
-  const targets = body.endpoint ? all.filter((item) => item.endpoint === body.endpoint) : all
-
+  const targets = (await loadSubscriptions()).filter((item) => item.endpoint === endpoint)
   if (targets.length === 0) {
     return NextResponse.json(
-      {
-        error: body.endpoint
-          ? "This device's subscription is not saved on the server yet. Tap Retry."
-          : "No push subscriptions saved yet. Enable reminders first.",
-        sent: 0,
-        subscribers: all.length,
-      },
+      { error: "This device's subscription is not saved on the server yet. Tap Retry.", sent: 0 },
       { status: 400 }
     )
   }
@@ -47,12 +55,10 @@ export async function POST(request: NextRequest) {
           ? `${first.service} rejected the push${first.statusCode ? ` (${first.statusCode})` : ""}: ${first.message}`
           : "Could not send test push",
         sent: 0,
-        subscribers: all.length,
-        failures,
       },
       { status: 502 }
     )
   }
 
-  return NextResponse.json({ sent, subscribers: all.length, failures })
+  return NextResponse.json({ sent })
 }
