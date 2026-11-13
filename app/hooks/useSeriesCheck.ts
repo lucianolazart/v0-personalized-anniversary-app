@@ -9,7 +9,7 @@ import { fetchSeriesInfo } from "../lib/tmdb-client"
 import { seriesFields } from "../lib/media"
 
 // Renamed when the check starts storing new data, so it runs again the day the update arrives.
-const CHECK_KEY = "series-check-day-v2"
+const CHECK_KEY = "series-check-day-v3"
 const FOLLOWED: MediaWithId["state"][] = ["in-progress", "to-resume", "up-to-date"]
 
 function sameEpisode(a?: { season: number; episode: number }, b?: { season: number; episode: number } | null) {
@@ -29,7 +29,7 @@ function upToDateWith(media: MediaWithId, info: SeriesInfo) {
 
 /**
  * Once a day per device, asks TMDB about every series they follow (Viendo, Por retomar, Al día):
- * - stores the latest and the next episode (poster tags, "Próximos estrenos", the calendar);
+ * - stores the latest and the next episode (poster tags, "Próximos estrenos");
  * - an "Al día" series with a released episode they haven't seen moves to "Por retomar".
  */
 export function useSeriesCheck(mediaList: MediaWithId[], loading: boolean) {
@@ -46,10 +46,10 @@ export function useSeriesCheck(mediaList: MediaWithId[], loading: boolean) {
     const series = mediaList.filter((media) => media.type === "serie" && FOLLOWED.includes(media.state))
     if (series.length === 0) return
 
-    let cancelled = false
-    void (async () => {
-      for (const media of series) {
-        if (cancelled) return
+    // All series at once, and not tied to this screen: leaving Pelis must not cut the check short,
+    // since it only runs once a day.
+    void Promise.allSettled(
+      series.map(async (media) => {
         try {
           const info = await fetchSeriesInfo(media)
           const ref = doc(db, "peliculas", media.id)
@@ -59,23 +59,19 @@ export function useSeriesCheck(mediaList: MediaWithId[], loading: boolean) {
             if (!media.progress) {
               // Marked "Al día" before episodes were tracked: assume they saw everything out so far.
               await updateDoc(ref, { ...fields, progress: info.lastAired })
-              continue
+              return
             }
             if (compareEpisodes(media.progress, info.lastAired) < 0) {
               await updateDoc(ref, { ...fields, state: "to-resume" })
-              continue
+              return
             }
           }
           if (!upToDateWith(media, info)) await updateDoc(ref, fields)
         } catch (error) {
           console.error("Series check failed:", error)
         }
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
+      })
+    )
     // Runs once, when the catalog finishes loading.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
