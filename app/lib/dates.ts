@@ -1,3 +1,11 @@
+/** Converts a Firestore Timestamp (or a Date) read from a document into a Date. */
+export function toFirestoreDate(value: { toDate?: () => Date } | Date | null | undefined) {
+  if (!value) return null
+  if (value instanceof Date) return value
+  if (typeof value.toDate === "function") return value.toDate()
+  return null
+}
+
 export function parseLocalDate(value: string) {
   const [year, month, day] = value.split("-").map(Number)
   return new Date(year, month - 1, day)

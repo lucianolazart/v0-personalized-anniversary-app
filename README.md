@@ -6,7 +6,7 @@ Cómo funciona:
 
 1. El celular (PWA instalada) registra `public/service-worker.js`, se suscribe con la clave VAPID pública y guarda la suscripción en Firestore (`pushSubscriptions`).
 2. El cron de `vercel.json` llama todos los días a `/api/movie-night/reminders` a las 13:00 UTC (10:00 en Argentina) y manda un aviso la víspera y otro el mismo día de cada movie night o plan.
-3. El botón **Send test** de la app llama a `/api/movie-night/test-push` y manda un push solo al dispositivo que lo tocó.
+3. El botón **Send test** de la app llama a `/api/movie-night/test-push` y manda un push solo al dispositivo que lo tocó (como mucho una prueba cada 15 segundos por dispositivo).
 
 Variables de entorno (en Vercel → Settings → Environment Variables, nunca en el repo):
 
@@ -18,3 +18,7 @@ Variables de entorno (en Vercel → Settings → Environment Variables, nunca en
 | `CRON_SECRET` | Opcional pero recomendada. Si está definida, Vercel la manda en el cron y el endpoint rechaza llamadas sin ella. |
 
 Para generar el par de claves VAPID, corré `npx web-push generate-vapid-keys`. Después de cambiar las variables, hay que volver a desplegar.
+
+## Búsqueda de películas y portadas (TMDB)
+
+`/api/tmdb/search` y `/api/tmdb/images` necesitan la variable `TMDB_API_KEY` (clave v3 de themoviedb.org), en Vercel y en `.env.local` para desarrollo. Sin ella, la búsqueda responde "Falta configurar TMDB_API_KEY en el servidor."

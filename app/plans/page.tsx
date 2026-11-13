@@ -6,7 +6,7 @@ import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "fireb
 import { db } from "../lib/firebase"
 import type { Plan, NewPlanFormState } from "../types/plans"
 import { categoryEmojis, categoryNames, groupActivePlans } from "../lib/plans"
-import { formatDisplayDate, parseLocalDate, toInputDate } from "../lib/dates"
+import { formatDisplayDate, parseLocalDate, toFirestoreDate, toInputDate } from "../lib/dates"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -46,13 +46,6 @@ const initialFormState: NewPlanFormState = {
   category: "entretenimiento",
 }
 
-function toFirestoreDate(value?: Date | { toDate?: () => Date } | null) {
-  if (!value) return undefined
-  if (value instanceof Date) return value
-  if (typeof value.toDate === "function") return value.toDate()
-  return undefined
-}
-
 export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,7 +64,7 @@ export default function PlansPage() {
         return {
           id: item.id,
           ...data,
-          date: toFirestoreDate(data.date),
+          date: toFirestoreDate(data.date) ?? undefined,
         } as Plan
       })
 

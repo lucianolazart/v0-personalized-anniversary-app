@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { parseTmdbLang, TMDB_API_KEY, TMDB_IMAGE_BASE } from "@/app/lib/tmdb"
+import { getTmdbApiKey, parseTmdbLang, TMDB_IMAGE_BASE, TMDB_KEY_MISSING_ERROR } from "@/app/lib/tmdb"
 import type { TmdbPoster } from "@/app/types/tmdb"
 
 interface TmdbImageItem {
@@ -19,8 +19,13 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const apiKey = getTmdbApiKey()
+  if (!apiKey) {
+    return NextResponse.json({ error: TMDB_KEY_MISSING_ERROR }, { status: 500 })
+  }
+
   const url = new URL(`https://api.themoviedb.org/3/${mediaType}/${id}/images`)
-  url.searchParams.set("api_key", TMDB_API_KEY)
+  url.searchParams.set("api_key", apiKey)
   url.searchParams.set("language", parseTmdbLang(request.nextUrl.searchParams.get("lang")))
   url.searchParams.set("include_image_language", "es,en,null")
 

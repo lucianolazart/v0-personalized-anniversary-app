@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { parseTmdbLang, TMDB_API_KEY, TMDB_IMAGE_BASE } from "@/app/lib/tmdb"
+import { getTmdbApiKey, parseTmdbLang, TMDB_IMAGE_BASE, TMDB_KEY_MISSING_ERROR } from "@/app/lib/tmdb"
 import type { TmdbSearchResult } from "@/app/types/tmdb"
 
 interface TmdbSearchItem {
@@ -24,6 +24,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
+  const apiKey = getTmdbApiKey()
+  if (!apiKey) {
+    return NextResponse.json({ error: TMDB_KEY_MISSING_ERROR }, { status: 500 })
+  }
+
   const lang = parseTmdbLang(request.nextUrl.searchParams.get("lang"))
   const type = request.nextUrl.searchParams.get("type")
   const moviesOnly = type === "movie"
@@ -33,7 +38,7 @@ export async function GET(request: NextRequest) {
       ? "https://api.themoviedb.org/3/search/movie"
       : "https://api.themoviedb.org/3/search/multi"
   )
-  url.searchParams.set("api_key", TMDB_API_KEY)
+  url.searchParams.set("api_key", apiKey)
   url.searchParams.set("query", query)
   url.searchParams.set("include_adult", "false")
   url.searchParams.set("language", lang)

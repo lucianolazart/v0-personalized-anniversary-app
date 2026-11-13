@@ -14,15 +14,9 @@ import {
   formatDisplayDate,
   isAnniversaryToday,
   nextAnniversary,
+  toFirestoreDate,
 } from "./lib/dates"
 import { ThemeToggle } from "@/components/theme-toggle"
-
-function toFirestoreDate(value: { toDate?: () => Date } | Date | null | undefined) {
-  if (!value) return null
-  if (value instanceof Date) return value
-  if (typeof value.toDate === "function") return value.toDate()
-  return null
-}
 
 export default function Home() {
   const [nights, setNights] = useState<MovieNight[]>([])

@@ -1,15 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  async rewrites() {
-    // The service worker is served straight from public/service-worker.js.
-    return [
-      {
-        source: '/manifest.json',
-        destination: '/api/manifest',
-      },
-    ];
-  },
   async headers() {
     return [
       {
@@ -33,4 +24,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig; 
+module.exports = nextConfig;

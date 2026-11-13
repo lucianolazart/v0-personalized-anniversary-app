@@ -4,6 +4,12 @@ import { VapidConfigError } from "@/app/lib/vapid"
 
 export const dynamic = "force-dynamic"
 
+// The app has no user accounts, so the endpoint itself is the only credential, and it is readable
+// by anyone who can list `pushSubscriptions`. Throttle tests per device so a leaked endpoint can't
+// be used to flood a phone. In-memory, so the limit is per server instance (best effort).
+const TEST_COOLDOWN_MS = 15_000
+const lastTestByEndpoint = new Map<string, number>()
+
 function isPushEndpoint(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 2048) return false
   try {
@@ -24,6 +30,14 @@ export async function POST(request: NextRequest) {
   }
   const endpoint = body.endpoint
 
+  const lastTest = lastTestByEndpoint.get(endpoint)
+  if (lastTest !== undefined && Date.now() - lastTest < TEST_COOLDOWN_MS) {
+    return NextResponse.json(
+      { error: "Wait a few seconds before sending another test.", sent: 0 },
+      { status: 429 }
+    )
+  }
+
   try {
     ensureVapid()
   } catch (error) {
@@ -40,6 +54,9 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     )
   }
+
+  // Only endpoints that are really subscribed get recorded, so the map stays as small as the collection.
+  lastTestByEndpoint.set(endpoint, Date.now())
 
   const { sent, failures } = await sendToSubscriptions(
     targets,

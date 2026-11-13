@@ -1,7 +1,7 @@
 // Bump CACHE_NAME whenever this file changes so installed PWAs pick up the new worker.
-const CACHE_NAME = "lazarski-v5"
+const CACHE_NAME = "lazarski-v6"
 const urlsToCache = [
-  "/manifest.json",
+  "/manifest.webmanifest",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
 ]
