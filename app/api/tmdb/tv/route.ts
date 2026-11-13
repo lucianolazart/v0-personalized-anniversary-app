@@ -60,9 +60,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "TMDB no pudo traer la serie." }, { status: 502 })
     }
 
-    const lastAired = data.last_episode_to_air
-      ? { season: data.last_episode_to_air.season_number, episode: data.last_episode_to_air.episode_number }
-      : null
     const seasons = (data.seasons ?? [])
       // Season 0 holds specials; empty seasons are only announced.
       .filter((season) => season.season_number > 0 && season.episode_count > 0)
@@ -73,6 +70,23 @@ export async function GET(request: NextRequest) {
         name: season.name,
       }))
 
+    // Some series (anime like Naruto) number episodes across the whole show: TMDB says the
+    // last one is "S4 E220" when season 4 has 62. Convert to the position inside its season.
+    const offsets = new Map<number, number>()
+    seasons.reduce((total, season) => {
+      offsets.set(season.number, total)
+      return total + season.episodes
+    }, 0)
+    const withinSeason = (raw: RawEpisode) => {
+      const count = seasons.find((season) => season.number === raw.season_number)?.episodes
+      let episode = raw.episode_number
+      const offset = offsets.get(raw.season_number) ?? 0
+      if (count && episode > count && episode - offset >= 1 && episode - offset <= count) episode -= offset
+      return { season: raw.season_number, episode }
+    }
+
+    const lastAired = data.last_episode_to_air ? withinSeason(data.last_episode_to_air) : null
+
     const body: SeriesInfo = {
       tmdbId,
       name: data.name,
@@ -80,11 +94,7 @@ export async function GET(request: NextRequest) {
       seasons,
       lastAired: lastAired && lastAired.season > 0 ? lastAired : null,
       nextToAir: data.next_episode_to_air?.air_date
-        ? {
-            season: data.next_episode_to_air.season_number,
-            episode: data.next_episode_to_air.episode_number,
-            airDate: data.next_episode_to_air.air_date,
-          }
+        ? { ...withinSeason(data.next_episode_to_air), airDate: data.next_episode_to_air.air_date }
         : null,
     }
     return NextResponse.json(body)

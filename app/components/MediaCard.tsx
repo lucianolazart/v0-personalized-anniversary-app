@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MoreVertical } from "lucide-react"
+import { Check, CircleDot, MoreVertical, Play, RotateCcw, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -32,18 +32,45 @@ export const STATE_LABELS: Record<MediaWithId["state"], string> = {
   "to-resume": "Por retomar",
 }
 
-export function stateDotClass(state: MediaWithId["state"]) {
-  switch (state) {
-    case "watched":
-      return "bg-foreground"
+/** Only the states that ask for something (keep watching, pick it back up) use orange. */
+const NEEDS_ATTENTION: Record<MediaWithId["state"], boolean> = {
+  watched: false,
+  "in-progress": true,
+  pending: false,
+  "up-to-date": false,
+  "to-resume": true,
+}
+
+const STATE_ICONS: Record<MediaWithId["state"], LucideIcon | null> = {
+  watched: Check,
+  "in-progress": Play,
+  pending: null,
+  "up-to-date": CircleDot,
+  "to-resume": RotateCcw,
+}
+
+/** "Nueva temporada" when the unseen episode opens a new season, otherwise "Nuevo cap.". */
+function newContentLabel(media: MediaWithId) {
+  if (media.progress && media.lastAired) {
+    return media.lastAired.season > media.progress.season ? "Nueva temporada" : "Nuevo cap."
+  }
+  return "Por retomar"
+}
+
+/** The tag over the poster; "Por ver" and "Vista" have none (Vista dims the poster instead). */
+function posterTag(media: MediaWithId): { label: string; attention: boolean } | null {
+  switch (media.state) {
     case "in-progress":
-      return "bg-primary"
-    case "pending":
-      return "bg-muted-foreground/50"
-    case "up-to-date":
-      return "bg-emerald-600"
+      return {
+        label: media.type === "serie" && media.progress ? formatEpisode(media.progress) : "Viendo",
+        attention: true,
+      }
     case "to-resume":
-      return "bg-sky-600"
+      return { label: newContentLabel(media), attention: true }
+    case "up-to-date":
+      return { label: "Al día", attention: false }
+    default:
+      return null
   }
 }
 
@@ -86,6 +113,8 @@ export function MediaCard({ media, variant, onEdit, onDelete, onTrack }: MediaCa
   )
 
   if (variant === "poster") {
+    const watched = media.state === "watched"
+    const tag = posterTag(media)
     return (
       <div className="w-full">
         <div
@@ -98,18 +127,28 @@ export function MediaCard({ media, variant, onEdit, onDelete, onTrack }: MediaCa
           <img
             src={media.image || "/placeholder.svg?height=450&width=300"}
             alt={media.title}
-            className="pointer-events-none h-full w-full object-cover"
+            className={cn(
+              "pointer-events-none h-full w-full object-cover transition-opacity",
+              watched && "opacity-55 grayscale-[35%]"
+            )}
             draggable={false}
           />
-          <span
-            className={cn(
-              "absolute top-1.5 right-1.5 h-2 w-2 rounded-full ring-2 ring-white/80 pointer-events-none",
-              stateDotClass(media.state)
-            )}
-          />
-          {media.type === "serie" && media.progress && (
-            <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white pointer-events-none">
-              {formatEpisode(media.progress)}
+          {watched && (
+            <span
+              className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-black/65 text-white inline-flex items-center justify-center pointer-events-none"
+              aria-label="Vista"
+            >
+              <Check className="h-3 w-3" strokeWidth={3} />
+            </span>
+          )}
+          {tag && (
+            <span
+              className={cn(
+                "absolute bottom-1.5 left-1.5 max-w-[calc(100%-2.75rem)] truncate rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide pointer-events-none",
+                tag.attention ? "bg-primary text-primary-foreground" : "bg-black/60 text-white"
+              )}
+            >
+              {tag.label}
             </span>
           )}
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -127,12 +166,15 @@ export function MediaCard({ media, variant, onEdit, onDelete, onTrack }: MediaCa
             {menu}
           </DropdownMenu>
         </div>
-        <p className="mt-1.5 text-xs leading-tight font-medium text-foreground line-clamp-1">
+        <p className={cn("mt-1.5 text-xs leading-tight font-medium line-clamp-1", watched ? "text-muted-foreground" : "text-foreground")}>
           {media.title}
         </p>
       </div>
     )
   }
+
+  const StateIcon = STATE_ICONS[media.state]
+  const attention = NEEDS_ATTENTION[media.state]
 
   return (
     <div className="flex items-center gap-3.5 py-2.5 border-b border-border">
@@ -140,7 +182,7 @@ export function MediaCard({ media, variant, onEdit, onDelete, onTrack }: MediaCa
         <img
           src={media.image || "/placeholder.svg?height=450&width=300"}
           alt=""
-          className="h-full w-full object-cover"
+          className={cn("h-full w-full object-cover", media.state === "watched" && "opacity-60 grayscale-[35%]")}
           width={36}
           height={54}
           draggable={false}
@@ -155,8 +197,13 @@ export function MediaCard({ media, variant, onEdit, onDelete, onTrack }: MediaCa
         <p className="mt-1 font-mono text-[11px] uppercase text-muted-foreground line-clamp-1">{metaLine(media)}</p>
       </button>
       {media.state === "watched" && media.watchedOn && <WatchedOnIcon value={media.watchedOn} />}
-      <span className="flex shrink-0 items-center gap-1.5 text-xs text-foreground/80">
-        <span className={cn("h-1.5 w-1.5 rounded-full", stateDotClass(media.state))} />
+      <span
+        className={cn(
+          "flex shrink-0 items-center gap-1 text-xs",
+          attention ? "font-semibold text-primary" : "text-muted-foreground"
+        )}
+      >
+        {StateIcon && <StateIcon className="h-3.5 w-3.5" strokeWidth={2} />}
         {STATE_LABELS[media.state]}
       </span>
       <DropdownMenu>

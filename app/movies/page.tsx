@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { Check, Film, LayoutGrid, List, Plus, Search, Star, Tv, Clock, RefreshCw, Play } from "lucide-react"
-import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, deleteField, type DocumentData, type UpdateData } from "firebase/firestore"
+import { collection, addDoc, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "../lib/firebase"
 import {
   AlertDialog,
@@ -31,18 +31,26 @@ import type { MediaWithId, NewMediaFormState } from "../types/media"
 import { MediaCard } from "../components/MediaCard"
 import { CoverPicker } from "../components/CoverPicker"
 import { WatchedOnOptions } from "../components/WatchedOnPicker"
-import { parseWatchedOn } from "../lib/watched-on"
-import { EpisodeTracker } from "../components/EpisodeTracker"
+import { SeriesHub } from "../components/SeriesHub"
+import { mediaFromDoc } from "../lib/media"
+import { useRouter } from "next/navigation"
 import { useSeriesCheck } from "../hooks/useSeriesCheck"
-import { compareEpisodes, parseEpisodeRef, type SeriesInfo } from "../lib/episodes"
-import type { EpisodeRef } from "../types/media"
-import { IconButton, PageHeader } from "@/components/page-header"
+import { IconButton, PageHeader, SectionLabel } from "@/components/page-header"
+
+const STATE_GROUPS: Array<{ state: MediaWithId["state"]; title: string; attention?: boolean }> = [
+  { state: "in-progress", title: "Viendo", attention: true },
+  { state: "to-resume", title: "Por retomar", attention: true },
+  { state: "pending", title: "Por ver" },
+  { state: "up-to-date", title: "Al día" },
+  { state: "watched", title: "Vistas" },
+]
 import { cn } from "@/lib/utils"
 
 const VIEW_KEY = "movies-view"
 type ViewMode = "posters" | "compact"
 
 export default function MoviesPage() {
+  const router = useRouter()
   const [mediaList, setMediaList] = useState<MediaWithId[]>([])
   const [open, setOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -51,7 +59,6 @@ export default function MoviesPage() {
   const [saving, setSaving] = useState(false)
   const [editingMedia, setEditingMedia] = useState<MediaWithId | null>(null)
   const [deletingMedia, setDeletingMedia] = useState<MediaWithId | null>(null)
-  const [trackingId, setTrackingId] = useState<string | null>(null)
   const initialFormState: NewMediaFormState = {
     title: "",
     type: "pelicula",
@@ -67,21 +74,7 @@ export default function MoviesPage() {
     const q = query(mediaRef, orderBy("title"))
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const updatedMedia = snapshot.docs.map(doc => {
-        const data = doc.data()
-        return {
-          id: doc.id,
-          title: data.title,
-          year: data.year,
-          image: data.image,
-          state: data.state,
-          type: data.type,
-          tmdbId: typeof data.tmdbId === "number" ? data.tmdbId : undefined,
-          tmdbType: data.tmdbType === "movie" || data.tmdbType === "tv" ? data.tmdbType : undefined,
-          watchedOn: parseWatchedOn(data.watchedOn),
-          progress: parseEpisodeRef(data.progress),
-        } as MediaWithId
-      })
+      const updatedMedia = snapshot.docs.map((item) => mediaFromDoc(item.id, item.data()))
       
       setMediaList(updatedMedia)
       setLoading(false)
@@ -169,27 +162,6 @@ export default function MoviesPage() {
     setTimeout(() => {
       window.scrollTo(0, currentScroll)
     }, 0)
-  }
-
-  const trackingMedia = trackingId ? mediaList.find((media) => media.id === trackingId) ?? null : null
-
-  // Saves "¿Por dónde van?" and moves the series between Viendo / Al día / Vista on its own.
-  const handleSaveProgress = async (media: MediaWithId, progress: EpisodeRef | null, info: SeriesInfo | null) => {
-    const updates: UpdateData<DocumentData> = { progress: progress ?? deleteField() }
-    if (info) {
-      updates.tmdbId = info.tmdbId
-      updates.tmdbType = "tv"
-    }
-    if (progress && info?.lastAired) {
-      const ended = info.status === "Ended" || info.status === "Canceled"
-      if (compareEpisodes(progress, info.lastAired) >= 0) updates.state = ended ? "watched" : "up-to-date"
-      else if (media.state !== "in-progress") updates.state = "in-progress"
-    }
-    try {
-      await updateDoc(doc(db, "peliculas", media.id), updates)
-    } catch (error) {
-      console.error("Error saving progress:", error)
-    }
   }
 
   // Series marked "Al día" go to "Por retomar" by themselves when a new episode is out.
@@ -343,6 +315,11 @@ export default function MoviesPage() {
       </div>
 
       <main className={cn("pb-28 max-w-xl mx-auto", viewMode === "posters" ? "px-4 pt-1" : "px-5")}>
+        {!loading && typeFilter === "series" && stateFilter === "all" && !searchTerm && (
+          <div className={viewMode === "posters" ? "px-1" : ""}>
+            <SeriesHub series={filteredMedia} />
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-7 w-7 border-2 border-muted border-t-primary" />
@@ -360,22 +337,40 @@ export default function MoviesPage() {
                 variant="poster"
                 onEdit={handleEdit}
                 onDelete={(item) => setDeletingMedia(item)}
-                onTrack={(media) => setTrackingId(media.id)}
+                onTrack={(item) => router.push(`/series/${item.id}`)}
               />
             ))}
           </div>
         ) : (
-          <div>
-            {filteredMedia.map((media) => (
-              <MediaCard
-                key={media.id}
-                media={media}
-                variant="compact"
-                onEdit={handleEdit}
-                onDelete={(item) => setDeletingMedia(item)}
-                onTrack={(media) => setTrackingId(media.id)}
-              />
-            ))}
+          // With "Todos" the list is grouped by state: what they're watching first, what they saw last.
+          <div className="space-y-6 pt-1">
+            {(stateFilter === "all"
+              ? STATE_GROUPS.map((group) => ({
+                  ...group,
+                  items: filteredMedia.filter((media) => media.state === group.state),
+                }))
+              : [{ state: stateFilter, title: "", items: filteredMedia }]
+            )
+              .filter((group) => group.items.length > 0)
+              .map((group) => (
+                <section key={group.state}>
+                  {group.title && (
+                    <SectionLabel count={group.items.length} tone={group.attention ? "primary" : "muted"}>
+                      {group.title}
+                    </SectionLabel>
+                  )}
+                  {group.items.map((media) => (
+                    <MediaCard
+                      key={media.id}
+                      media={media}
+                      variant="compact"
+                      onEdit={handleEdit}
+                      onDelete={(item) => setDeletingMedia(item)}
+                      onTrack={(item) => router.push(`/series/${item.id}`)}
+                    />
+                  ))}
+                </section>
+              ))}
           </div>
         )}
       </main>
@@ -591,7 +586,6 @@ export default function MoviesPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <EpisodeTracker media={trackingMedia} onClose={() => setTrackingId(null)} onSave={handleSaveProgress} />
     </div>
   )
 }

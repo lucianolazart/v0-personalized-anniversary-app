@@ -5,13 +5,32 @@ import { doc, updateDoc } from "firebase/firestore"
 import { db } from "../lib/firebase"
 import type { MediaWithId } from "../types/media"
 import { compareEpisodes, type SeriesInfo } from "../lib/episodes"
-import { seriesInfoUrl } from "../components/EpisodeTracker"
+import { fetchSeriesInfo } from "../lib/tmdb-client"
+import { seriesFields } from "../lib/media"
 
-const CHECK_KEY = "series-check-day"
+// Renamed when the check starts storing new data, so it runs again the day the update arrives.
+const CHECK_KEY = "series-check-day-v2"
+const FOLLOWED: MediaWithId["state"][] = ["in-progress", "to-resume", "up-to-date"]
+
+function sameEpisode(a?: { season: number; episode: number }, b?: { season: number; episode: number } | null) {
+  return (!a && !b) || (Boolean(a && b) && a!.season === b!.season && a!.episode === b!.episode)
+}
+
+/** True when the stored TMDB facts already match, so there is nothing to write. */
+function upToDateWith(media: MediaWithId, info: SeriesInfo) {
+  return (
+    media.tmdbId === info.tmdbId &&
+    media.tmdbType === "tv" &&
+    sameEpisode(media.lastAired, info.lastAired) &&
+    sameEpisode(media.nextToAir, info.nextToAir) &&
+    media.nextToAir?.airDate === info.nextToAir?.airDate
+  )
+}
 
 /**
- * Once a day per device, looks up every series marked "Al día" on TMDB. If an episode they
- * haven't seen is already out, the series moves to "Por retomar".
+ * Once a day per device, asks TMDB about every series they follow (Viendo, Por retomar, Al día):
+ * - stores the latest and the next episode (poster tags, "Próximos estrenos", the calendar);
+ * - an "Al día" series with a released episode they haven't seen moves to "Por retomar".
  */
 export function useSeriesCheck(mediaList: MediaWithId[], loading: boolean) {
   useEffect(() => {
@@ -24,7 +43,7 @@ export function useSeriesCheck(mediaList: MediaWithId[], loading: boolean) {
       // Without storage the check simply runs on every visit.
     }
 
-    const series = mediaList.filter((media) => media.type === "serie" && media.state === "up-to-date")
+    const series = mediaList.filter((media) => media.type === "serie" && FOLLOWED.includes(media.state))
     if (series.length === 0) return
 
     let cancelled = false
@@ -32,17 +51,22 @@ export function useSeriesCheck(mediaList: MediaWithId[], loading: boolean) {
       for (const media of series) {
         if (cancelled) return
         try {
-          const res = await fetch(seriesInfoUrl(media))
-          if (!res.ok) continue
-          const info = (await res.json()) as SeriesInfo
-          if (!info.lastAired) continue
-          const ids = { tmdbId: info.tmdbId, tmdbType: "tv" }
-          if (!media.progress) {
-            // Marked "Al día" before episodes were tracked: assume they saw everything out so far.
-            await updateDoc(doc(db, "peliculas", media.id), { ...ids, progress: info.lastAired })
-          } else if (compareEpisodes(media.progress, info.lastAired) < 0) {
-            await updateDoc(doc(db, "peliculas", media.id), { ...ids, state: "to-resume" })
+          const info = await fetchSeriesInfo(media)
+          const ref = doc(db, "peliculas", media.id)
+          const fields = seriesFields(info)
+
+          if (media.state === "up-to-date" && info.lastAired) {
+            if (!media.progress) {
+              // Marked "Al día" before episodes were tracked: assume they saw everything out so far.
+              await updateDoc(ref, { ...fields, progress: info.lastAired })
+              continue
+            }
+            if (compareEpisodes(media.progress, info.lastAired) < 0) {
+              await updateDoc(ref, { ...fields, state: "to-resume" })
+              continue
+            }
           }
+          if (!upToDateWith(media, info)) await updateDoc(ref, fields)
         } catch (error) {
           console.error("Series check failed:", error)
         }

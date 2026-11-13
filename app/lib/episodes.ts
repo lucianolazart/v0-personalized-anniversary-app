@@ -18,6 +18,23 @@ export interface SeriesInfo {
   nextToAir: (EpisodeRef & { airDate: string }) | null
 }
 
+/** One episode as /api/tmdb/season returns it. */
+export interface EpisodeDetail {
+  number: number
+  name: string
+  overview: string
+  airDate: string | null
+  /** Minutes. */
+  runtime: number | null
+  stillUrl: string | null
+}
+
+export interface SeasonDetail {
+  season: number
+  name: string
+  episodes: EpisodeDetail[]
+}
+
 export function formatEpisode(ep: EpisodeRef) {
   return `T${ep.season} · E${ep.episode}`
 }
@@ -32,6 +49,24 @@ export function parseEpisodeRef(value: unknown): EpisodeRef | undefined {
   if (typeof season !== "number" || typeof episode !== "number") return undefined
   if (season < 1 || episode < 1) return undefined
   return { season, episode }
+}
+
+export function parseNextToAir(value: unknown): (EpisodeRef & { airDate: string }) | undefined {
+  const ref = parseEpisodeRef(value)
+  const airDate = (value as { airDate?: unknown } | null)?.airDate
+  return ref && typeof airDate === "string" ? { ...ref, airDate } : undefined
+}
+
+/** "2026-12-02" (TMDB air date) as a local Date at noon, so the day never shifts. */
+export function airDateToDate(airDate: string) {
+  return new Date(`${airDate}T12:00:00`)
+}
+
+/** Episodes watched and released so far, for the progress bar. */
+export function seriesProgressCounts(progress: EpisodeRef | undefined, info: SeriesInfo) {
+  const total = info.lastAired ? episodesBetween(undefined, info.lastAired, info.seasons) : 0
+  const watched = progress ? Math.min(total, episodesBetween(undefined, progress, info.seasons)) : 0
+  return { watched, total }
 }
 
 export function nextEpisode(ep: EpisodeRef | undefined, seasons: SeasonInfo[]): EpisodeRef | null {

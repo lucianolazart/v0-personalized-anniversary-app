@@ -23,6 +23,10 @@ export interface BaseMedia {
   watchedOn?: WatchedOn;
   /** Series only: the last episode they watched ("¿Por dónde van?"). */
   progress?: EpisodeRef;
+  /** Series only: the latest released episode the last time we asked TMDB. */
+  lastAired?: EpisodeRef;
+  /** Series only: the next announced episode, shown in "Próximos estrenos" and the calendar. */
+  nextToAir?: EpisodeRef & { airDate: string };
 }
 
 export type MediaWithId = BaseMedia & { id: string };
