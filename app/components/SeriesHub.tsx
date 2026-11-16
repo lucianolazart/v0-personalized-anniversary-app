@@ -7,6 +7,7 @@ import type { MediaWithId } from "../types/media"
 import {
   airDateToDate,
   compareEpisodes,
+  episodesBetween,
   formatEpisode,
   nextEpisode,
   type EpisodeDetail,
@@ -37,7 +38,8 @@ export function SeriesHub({ series }: { series: MediaWithId[] }) {
     const today = startOfToday().getTime()
     const limit = today + UPCOMING_DAYS * 24 * 60 * 60 * 1000
     return series
-      .filter((media) => media.nextToAir && media.state !== "watched")
+      // "Por retomar" ones already have episodes waiting; they show in their own group instead.
+      .filter((media) => media.nextToAir && media.state !== "watched" && media.state !== "to-resume")
       .map((media) => ({ media, date: airDateToDate(media.nextToAir!.airDate) }))
       .filter(({ date }) => date.getTime() >= today && date.getTime() <= limit)
       .sort((a, b) => a.date.getTime() - b.date.getTime())
@@ -101,6 +103,8 @@ function UpNextRow({ media }: { media: MediaWithId }) {
 
   const next = info ? nextEpisode(media.progress, info.seasons) : null
   const isOut = Boolean(next && (!info?.lastAired || compareEpisodes(next, info.lastAired) <= 0))
+  // Released episodes still to watch, the next one included.
+  const remaining = info?.lastAired ? episodesBetween(media.progress, info.lastAired, info.seasons) : 0
 
   useEffect(() => {
     if (!info || !next || !isOut) {
@@ -158,6 +162,11 @@ function UpNextRow({ media }: { media: MediaWithId }) {
                   : "Al día"}
           </p>
           {detail && <p className="text-[13px] text-muted-foreground line-clamp-1">{detail.name}</p>}
+          {isOut && remaining > 0 && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {remaining === 1 ? "Falta 1 capítulo" : `Faltan ${remaining} capítulos`}
+            </p>
+          )}
         </div>
       </Link>
       {isOut && next && (
