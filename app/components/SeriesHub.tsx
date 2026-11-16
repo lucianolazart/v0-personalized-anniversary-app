@@ -23,11 +23,13 @@ const UPCOMING_DAYS = 60
 
 /** Top of Pelis → Series: what to watch next, and new episodes coming soon. */
 export function SeriesHub({ series }: { series: MediaWithId[] }) {
+  // Only what they're watching now. "Por retomar" stays in its own group below until they mark an
+  // episode, which moves the series back to "Viendo" (see saveSeriesProgress) and so back here.
   const watching = useMemo(
     () =>
       series
-        .filter((media) => media.state === "in-progress" || media.state === "to-resume")
-        .sort((a, b) => (a.state === b.state ? a.title.localeCompare(b.title) : a.state === "in-progress" ? -1 : 1)),
+        .filter((media) => media.state === "in-progress")
+        .sort((a, b) => a.title.localeCompare(b.title)),
     [series]
   )
 
